@@ -30,6 +30,7 @@ type ViewerSettings = {
   highlightIntensity: HighlightIntensity;
   viewStyle: ViewStyle;
   autoScroll: boolean;
+  autoPlay: boolean;
   fontSize: number;
   lineHeight: number;
   maxRevisions: number;
@@ -69,6 +70,7 @@ const defaultViewerSettings: ViewerSettings = {
   highlightIntensity: 'subtle',
   viewStyle: 'inline',
   autoScroll: true,
+  autoPlay: true,
   fontSize: 16,
   lineHeight: 1.9,
   maxRevisions: 50000,
@@ -229,6 +231,7 @@ export default function Home() {
   const [highlightIntensity, setHighlightIntensity] = useState<HighlightIntensity>(defaultViewerSettings.highlightIntensity);
   const [viewStyle, setViewStyle] = useState<ViewStyle>(defaultViewerSettings.viewStyle);
   const [autoScroll, setAutoScroll] = useState(defaultViewerSettings.autoScroll);
+  const [autoPlay, setAutoPlay] = useState(defaultViewerSettings.autoPlay);
   const [fontSize, setFontSize] = useState(defaultViewerSettings.fontSize);
   const [lineHeight, setLineHeight] = useState(defaultViewerSettings.lineHeight);
   const [maxRevisions, setMaxRevisions] = useState(defaultViewerSettings.maxRevisions);
@@ -299,6 +302,7 @@ export default function Home() {
           : fallback;
       });
       setAutoScroll((prev) => settings.autoScroll ?? getFallback(prev, defaultViewerSettings.autoScroll));
+      setAutoPlay((prev) => settings.autoPlay ?? getFallback(prev, defaultViewerSettings.autoPlay));
       setFontSize((prev) => {
         const fallback = getFallback(prev, defaultViewerSettings.fontSize);
         return clampNumber(settings.fontSize ?? fallback, 12, 20, fallback);
@@ -360,6 +364,7 @@ export default function Home() {
             ? settingsData.viewStyle
             : undefined,
         autoScroll: typeof settingsData.autoScroll === 'boolean' ? settingsData.autoScroll : undefined,
+        autoPlay: typeof settingsData.autoPlay === 'boolean' ? settingsData.autoPlay : undefined,
         fontSize: settingsData.fontSize,
         lineHeight: settingsData.lineHeight,
         maxRevisions: settingsData.maxRevisions,
@@ -397,6 +402,7 @@ export default function Home() {
         highlightIntensity,
         viewStyle,
         autoScroll,
+        autoPlay,
         fontSize,
         lineHeight,
         maxRevisions,
@@ -421,6 +427,7 @@ export default function Home() {
     highlightIntensity,
     viewStyle,
     autoScroll,
+    autoPlay,
     fontSize,
     lineHeight,
     maxRevisions,
@@ -924,6 +931,23 @@ export default function Home() {
                           />
                         </button>
                       </label>
+                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                        <span>Autoplay on load</span>
+                        <button
+                          type="button"
+                          onClick={() => setAutoPlay((value) => !value)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                            autoPlay ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                          }`}
+                          aria-pressed={autoPlay}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              autoPlay ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
                     </div>
 
                     <div className="space-y-2">
@@ -1245,11 +1269,13 @@ export default function Home() {
           {/* Timeline */}
           <div className="fixed bottom-0 left-0 right-0 lg:right-[340px] z-40">
             <TimelineSlider
+              key={`${title ?? 'article'}-${autoPlay ? 'auto' : 'manual'}`}
               revisions={filteredRevisions}
               currentIndex={currentIndex}
               onChange={handleRevisionChange}
               isLoading={isBusy}
               playbackSpeed={playbackSpeed}
+              autoPlay={autoPlay}
             />
           </div>
         </div>

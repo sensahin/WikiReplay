@@ -36,6 +36,7 @@ interface TimelineSliderProps {
     onChange: (index: number) => void;
     isLoading?: boolean;
     playbackSpeed?: number;
+    autoPlay?: boolean;
 }
 
 export const TimelineSlider: React.FC<TimelineSliderProps> = ({
@@ -44,8 +45,9 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
     onChange,
     isLoading = false,
     playbackSpeed = 1,
+    autoPlay = false,
 }) => {
-    const [isPlaying, setIsPlaying] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(autoPlay);
     const [isDragging, setIsDragging] = useState(false);
     const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const sliderRef = useRef<HTMLDivElement>(null);
