@@ -18,12 +18,31 @@ interface MarkdownRendererProps {
   highlightClasses: HighlightClasses;
 }
 
+// Helper to recursively check if children contain an image element
+const containsImage = (children: React.ReactNode): boolean => {
+  const childArray = React.Children.toArray(children);
+  for (const child of childArray) {
+    if (React.isValidElement(child)) {
+      // Check if this element is an img
+      if (child.type === 'img') return true;
+      // Check if it's a custom component that renders img (by checking props.src)
+      const props = child.props as Record<string, unknown>;
+      if (props && typeof props === 'object' && 'src' in props && 'alt' in props) return true;
+      // Recursively check children (for ins, del, span wrappers etc.)
+      if (props && typeof props === 'object' && 'children' in props) {
+        if (containsImage(props.children as React.ReactNode)) return true;
+      }
+    }
+  }
+  return false;
+};
+
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks, showImages, highlightClasses }) => {
   const sanitizeSchema = useMemo(() => {
     const baseTags = defaultSchema.tagNames ?? [];
     return {
       ...defaultSchema,
-      tagNames: [...baseTags, 'ins', 'del'],
+      tagNames: [...baseTags, 'ins', 'del', 'figure', 'figcaption'],
     };
   }, []);
 
@@ -56,14 +75,29 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks
             className="text-current"
           />
         ),
+        // Custom paragraph that unwraps images to avoid nesting block elements in <p>
+        p: ({ children, ...props }) => {
+          // If paragraph contains an image (even nested in ins/del), render as div to avoid hydration error
+          if (showImages && containsImage(children)) {
+            return <div {...props}>{children}</div>;
+          }
+          return <p {...props}>{children}</p>;
+        },
         img: (props) =>
           showImages ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              {...props}
-              alt={props.alt ?? ''}
-              className="max-w-full rounded-md border border-white/10"
-            />
+            <figure className="float-right clear-right ml-4 mb-3 w-[250px] max-w-[40%] bg-white/[0.02] border border-white/10 rounded-lg overflow-hidden not-prose">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                {...props}
+                alt={props.alt ?? ''}
+                className="w-full h-auto"
+              />
+              {props.alt && (
+                <figcaption className="px-2 py-1.5 text-[11px] text-white/50 leading-snug">
+                  {props.alt}
+                </figcaption>
+              )}
+            </figure>
           ) : null,
         a: (props) =>
           showLinks ? (
