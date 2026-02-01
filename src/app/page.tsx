@@ -74,7 +74,7 @@ const defaultViewerSettings: ViewerSettings = {
   fontSize: 16,
   lineHeight: 1.9,
   maxRevisions: 50000,
-  playbackSpeed: 2,
+  playbackSpeed: 0.5,
   includeMinor: true,
   includeBots: true,
   includeAnonymous: true,
