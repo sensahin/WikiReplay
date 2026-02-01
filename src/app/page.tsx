@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo, useTransition
 import useSWR from 'swr';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, fetchRevisionExternalLinks, Revision, isIPAddress } from '@/lib/wikiApi';
+import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, fetchRevisionExternalLinks, Revision, isIPAddress, RevisionProgress } from '@/lib/wikiApi';
 import { calculateDiff, ExtendedChange } from '@/lib/diffUtils';
 import { TimelineSlider } from '@/components/TimelineSlider';
 import { DiffViewer } from '@/components/DiffViewer';
@@ -213,6 +213,7 @@ export default function Home() {
   const [diff, setDiff] = useState<ExtendedChange[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState<RevisionProgress | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showLinks, setShowLinks] = useState(defaultViewerSettings.showLinks);
@@ -236,6 +237,7 @@ export default function Home() {
   const [isPending, startTransition] = useTransition();
   const settingsRef = useRef<HTMLDivElement>(null);
   const scrollToChangeRef = useRef<(() => void) | null>(null);
+  const fullHistoryRef = useRef<Revision[]>([]);
 
   // Load a random article on initial mount
   useEffect(() => {
@@ -402,10 +404,28 @@ export default function Home() {
     editRangeEnd,
   ]);
 
-  const historyKey = title ? ['history-full', title] : null;
-  const { data: fullHistory, isLoading: isHistoryLoading, error: historyError } = useSWR(
-    historyKey,
-    () => fetchRevisionHistory(title ?? '', 50000, true),
+  const initialHistoryKey = title ? ['history-initial', title] : null;
+  const { data: initialHistory, isLoading: isInitialHistoryLoading, error: historyError } = useSWR(
+    initialHistoryKey,
+    () => {
+      setLoadingProgress(null);
+      return fetchRevisionHistory(title ?? '', 500, false, (progress) => {
+        setLoadingProgress(progress);
+      });
+    },
+    { revalidateOnFocus: false }
+  );
+
+  const { data: fullHistory } = useSWR(
+    initialHistory ? ['history-full', title] : null,
+    () => {
+      return fetchRevisionHistory(title ?? '', 50000, true, (progress) => {
+        if (progress.batch?.length) {
+          fullHistoryRef.current = [...fullHistoryRef.current, ...progress.batch];
+          setRevisions(fullHistoryRef.current);
+        }
+      });
+    },
     { revalidateOnFocus: false }
   );
 
@@ -528,13 +548,27 @@ export default function Home() {
     setRevisions([]);
     setCurrentIndex(0);
     setIsTransitioning(false);
+    setLoadingProgress(null);
+    fullHistoryRef.current = [];
   }, [title]);
 
   useEffect(() => {
-    if (!fullHistory) return;
-    setRevisions([...fullHistory].reverse());
+    if (!initialHistory) return;
+    setRevisions(initialHistory);
     setCurrentIndex(0);
-  }, [fullHistory, title]);
+  }, [initialHistory, title]);
+
+  useEffect(() => {
+    if (!fullHistory || fullHistory.length <= revisions.length) return;
+    const currentRevid = currentRevision?.revid;
+    setRevisions(fullHistory);
+    if (!currentRevid) {
+      setCurrentIndex(0);
+      return;
+    }
+    const nextIndex = fullHistory.findIndex((rev) => rev.revid === currentRevid);
+    setCurrentIndex(nextIndex >= 0 ? nextIndex : 0);
+  }, [fullHistory, revisions.length, currentRevision?.revid]);
 
   useEffect(() => {
     if (filteredRevisions.length === 0) {
@@ -551,7 +585,7 @@ export default function Home() {
     setError(historyError instanceof Error ? historyError.message : 'An error occurred');
   }, [historyError]);
 
-  const isBusy = isPending || isTitleLoading || isHistoryLoading || isCurrentContentLoading || (prevRevision ? isPrevContentLoading : false);
+  const isBusy = isPending || isTitleLoading || isInitialHistoryLoading || isCurrentContentLoading || (prevRevision ? isPrevContentLoading : false);
 
   const handleRevisionChange = useCallback((index: number) => {
     if (index === currentIndex || isBusy) return;
@@ -1070,7 +1104,15 @@ export default function Home() {
                   exit={{ opacity: 0 }}
                 >
                   <Loader2 className="text-white/40 mb-3 animate-spin" size={32} />
-                  <p className="text-white/30 text-sm">Loading revision history...</p>
+                  <p className="text-white/30 text-sm">
+                    {loadingProgress
+                      ? `Loading revision history... ${loadingProgress.loaded.toLocaleString()}${
+                          loadingProgress.total
+                            ? ` / ${loadingProgress.total.toLocaleString()}`
+                            : ' loaded'
+                        }`
+                      : 'Loading revision history...'}
+                  </p>
                 </motion.div>
               ) : filteredRevisions.length === 0 ? (
                 <motion.div

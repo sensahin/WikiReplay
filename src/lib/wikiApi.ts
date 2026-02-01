@@ -33,9 +33,53 @@ export async function fetchRandomArticle(): Promise<string> {
   return data.query.random[0].title;
 }
 
-export async function fetchRevisionHistory(title: string, limit: number = 500, fetchAll: boolean = true): Promise<Revision[]> {
+export interface RevisionProgress {
+  loaded: number;
+  total: number | null; // null if unknown
+  batch?: Revision[];
+  done?: boolean;
+}
+
+export async function fetchRevisionHistory(
+  title: string,
+  limit: number = 500,
+  fetchAll: boolean = true,
+  onProgress?: (progress: RevisionProgress) => void
+): Promise<Revision[]> {
   const allRevisions: Revision[] = [];
   let continueToken: string | undefined = undefined;
+  let totalRevisions: number | null = null;
+
+  if (!fetchAll) {
+    totalRevisions = limit;
+  }
+  
+  // First, fetch the total revision count if we need all revisions
+  if (fetchAll && onProgress) {
+    try {
+      // Use the page info to get revision count (this is an approximation)
+      const infoParams = new URLSearchParams({
+        action: 'query',
+        format: 'json',
+        titles: title,
+        prop: 'info',
+        origin: '*',
+      });
+      
+      const infoResponse = await fetch(`${WIKI_API_URL}?${infoParams.toString()}`);
+      const infoData = await infoResponse.json();
+      const pages = infoData.query?.pages;
+      if (pages) {
+        const pageId = Object.keys(pages)[0];
+        if (pageId !== '-1' && pages[pageId].length !== undefined) {
+          // Note: 'length' is article length in bytes, not revision count
+          // Wikipedia doesn't provide revision count directly, so we'll show just loaded count
+        }
+      }
+    } catch {
+      // Ignore errors in counting, proceed with fetching
+    }
+  }
   
   do {
     const params = new URLSearchParams({
@@ -44,6 +88,7 @@ export async function fetchRevisionHistory(title: string, limit: number = 500, f
       prop: 'revisions',
       titles: title,
       rvprop: 'ids|timestamp|user|comment|tags|flags',
+      rvdir: 'newer',
       rvlimit: Math.min(limit, 500).toString(), // Wikipedia max is 500 per request
       origin: '*',
     });
@@ -64,6 +109,11 @@ export async function fetchRevisionHistory(title: string, limit: number = 500, f
     const revisions = pages[pageId].revisions || [];
     allRevisions.push(...revisions);
 
+    // Report progress
+    if (onProgress) {
+      onProgress({ loaded: allRevisions.length, total: totalRevisions, batch: revisions, done: false });
+    }
+
     // Check if there are more revisions to fetch
     continueToken = data.continue?.rvcontinue;
     
@@ -73,7 +123,12 @@ export async function fetchRevisionHistory(title: string, limit: number = 500, f
     }
   } while (continueToken);
 
-  return allRevisions.slice(0, limit);
+  const finalRevisions = allRevisions.slice(0, limit);
+  if (onProgress) {
+    const total = totalRevisions ?? finalRevisions.length;
+    onProgress({ loaded: finalRevisions.length, total, done: true });
+  }
+  return finalRevisions;
 }
 
 export async function fetchRevisionContent(revid: number): Promise<string> {
