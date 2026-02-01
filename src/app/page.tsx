@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, fetchRevisionExternalLinks, Revision, isIPAddress, RevisionProgress } from '@/lib/wikiApi';
-import { calculateDiff, ExtendedChange } from '@/lib/diffUtils';
+import { calculateDiff, ExtendedChange, extractInfoboxes, InfoboxData } from '@/lib/diffUtils';
 import { TimelineSlider } from '@/components/TimelineSlider';
 import { DiffViewer } from '@/components/DiffViewer';
 import { Sidebar } from '@/components/Sidebar';
@@ -215,6 +215,7 @@ export default function Home() {
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [diff, setDiff] = useState<ExtendedChange[]>([]);
+  const [infoboxes, setInfoboxes] = useState<InfoboxData[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<RevisionProgress | null>(null);
@@ -614,6 +615,7 @@ export default function Home() {
   useEffect(() => {
     if (!currentRevision) {
       setDiff([]);
+      setInfoboxes([]);
       return;
     }
     if (!currentContent) return;
@@ -621,6 +623,10 @@ export default function Home() {
 
     const prevSource = injectExternalLinks(prevContent ?? '', prevExternalLinks, showTemplates);
     const currentSource = injectExternalLinks(currentContent, currentExternalLinks, showTemplates);
+    
+    // Extract infoboxes from the current content if templates are enabled
+    const extractedInfoboxes = showTemplates ? extractInfoboxes(currentContent) : [];
+    
     const newDiff = calculateDiff(prevSource, currentSource, {
       granularity: 'sentence',
       contentFilters: {
@@ -631,6 +637,7 @@ export default function Home() {
     });
     startTransition(() => {
       setDiff(newDiff);
+      setInfoboxes(extractedInfoboxes);
     });
 
     const finalizeScroll = () => {
@@ -1194,10 +1201,12 @@ export default function Home() {
                 >
                   <DiffViewer 
                     diff={diff} 
+                    infoboxes={infoboxes}
                     isTransitioning={isTransitioning}
                     onScrollToChange={handleScrollToChange}
                     showLinks={showLinks}
                     showImages={showImages}
+                    showTemplates={showTemplates}
                     highlightIntensity={highlightIntensity}
                     viewStyle={viewStyle}
                     autoScroll={autoScroll}

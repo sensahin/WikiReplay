@@ -185,7 +185,7 @@ export function toMarkdown(text: string, contentFilters: Partial<ContentFilters>
         };
         let baseMarkdown = typeof doc.markdown === 'function'
             ? doc.markdown({
-                infoboxes: filters.showTemplates,
+                infoboxes: false, // We render infoboxes separately
                 templates: filters.showTemplates,
                 images: filters.showImages,
             })
@@ -200,6 +200,35 @@ export function toMarkdown(text: string, contentFilters: Partial<ContentFilters>
         return normalizeMarkdownSpacing(injectReferences(baseMarkdown, referencesMarkdown));
     } catch {
         return normalizeMarkdownSpacing(preprocessed);
+    }
+}
+
+export interface InfoboxData {
+    type: string;
+    data: Record<string, { text?: string; number?: number; links?: Array<{ text: string; page?: string }> }>;
+}
+
+interface WtfInfobox {
+    type?: () => string;
+    json?: () => Record<string, { text?: string; number?: number; links?: Array<{ text: string; page?: string }> }>;
+}
+
+export function extractInfoboxes(text: string): InfoboxData[] {
+    if (!text) return [];
+    
+    try {
+        const doc = wtf(text) as {
+            infoboxes?: () => WtfInfobox[];
+        };
+        
+        const infoboxes = doc.infoboxes?.() ?? [];
+        
+        return infoboxes.map((infobox) => ({
+            type: infobox.type?.() ?? 'infobox',
+            data: infobox.json?.() ?? {},
+        }));
+    } catch {
+        return [];
     }
 }
 

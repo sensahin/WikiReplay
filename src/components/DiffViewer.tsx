@@ -3,18 +3,24 @@
 
 import React, { useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExtendedChange } from '@/lib/diffUtils';
+import { ExtendedChange, InfoboxData } from '@/lib/diffUtils';
 
 const MarkdownRenderer = React.lazy(() =>
     import('./MarkdownRenderer').then((module) => ({ default: module.default }))
 );
 
+const InfoboxRenderer = React.lazy(() =>
+    import('./InfoboxRenderer').then((module) => ({ default: module.default }))
+);
+
 interface DiffViewerProps {
     diff: ExtendedChange[];
+    infoboxes?: InfoboxData[];
     isTransitioning?: boolean;
     onScrollToChange?: (scrollFn: () => void) => void;
     showLinks?: boolean;
     showImages?: boolean;
+    showTemplates?: boolean;
     highlightIntensity?: 'subtle' | 'vivid' | 'flat';
     viewStyle?: 'inline' | 'split';
     autoScroll?: boolean;
@@ -24,10 +30,12 @@ interface DiffViewerProps {
 
 const DiffViewerComponent: React.FC<DiffViewerProps> = ({
     diff,
+    infoboxes = [],
     isTransitioning = false,
     onScrollToChange,
     showLinks = false,
     showImages = false,
+    showTemplates = false,
     highlightIntensity = 'subtle',
     viewStyle = 'inline',
     autoScroll = true,
@@ -158,6 +166,8 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
         }
     }, [autoScroll, isTransitioning, diff, scrollToFirstChange]);
 
+    const hasInfoboxes = showTemplates && infoboxes && infoboxes.length > 0;
+
     return (
         <motion.div 
             ref={containerRef}
@@ -204,14 +214,28 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
                             </div>
                         </div>
                     ) : (
-                        <Suspense fallback={renderFallback}>
-                            <MarkdownRenderer
-                                markdown={diffMarkdown}
-                                showLinks={showLinks}
-                                showImages={showImages}
-                                highlightClasses={highlightClasses}
-                            />
-                        </Suspense>
+                        <div className={hasInfoboxes ? 'relative' : ''}>
+                            {/* Infobox floated to the right like Wikipedia */}
+                            {hasInfoboxes && (
+                                <div className="float-right w-[300px] ml-5 mb-4 not-prose">
+                                    <Suspense fallback={renderFallback}>
+                                        <InfoboxRenderer
+                                            infoboxes={infoboxes}
+                                            showImages={showImages}
+                                        />
+                                    </Suspense>
+                                </div>
+                            )}
+                            <Suspense fallback={renderFallback}>
+                                <MarkdownRenderer
+                                    markdown={diffMarkdown}
+                                    showLinks={showLinks}
+                                    showImages={showImages}
+                                    highlightClasses={highlightClasses}
+                                />
+                            </Suspense>
+                            {hasInfoboxes && <div className="clear-both" />}
+                        </div>
                     )}
                 </motion.article>
             </AnimatePresence>
