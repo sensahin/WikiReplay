@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Revision, isIPAddress, fetchIPGeolocation, GeoLocation } from '@/lib/wikiApi';
 import { format } from 'date-fns';
-import { User, Globe, Loader2, Tag } from 'lucide-react';
+import { User, Globe, Loader2 } from 'lucide-react';
 
 // Convert country code to flag emoji
 function getCountryFlag(countryCode: string): string {
@@ -65,28 +65,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
 
     // Fetch geolocation when revision changes
     useEffect(() => {
-        if (!revision) {
-            setGeoLocation(null);
-            setIsAnonymous(false);
-            return;
-        }
+        let isActive = true;
 
         const checkAndFetchGeo = async () => {
+            if (!revision) {
+                if (!isActive) return;
+                setGeoLocation(null);
+                setIsAnonymous(false);
+                setIsLoadingGeo(false);
+                return;
+            }
+
             const anonymous = isIPAddress(revision.user);
+            if (!isActive) return;
             setIsAnonymous(anonymous);
 
-            if (anonymous) {
-                setIsLoadingGeo(true);
-                const geo = await fetchIPGeolocation(revision.user);
-                setGeoLocation(geo);
-                setIsLoadingGeo(false);
-            } else {
+            if (!anonymous) {
                 setGeoLocation(null);
+                setIsLoadingGeo(false);
+                return;
             }
+
+            setIsLoadingGeo(true);
+            const geo = await fetchIPGeolocation(revision.user);
+            if (!isActive) return;
+            setGeoLocation(geo);
+            setIsLoadingGeo(false);
         };
 
         checkAndFetchGeo();
-    }, [revision?.revid, revision?.user]);
+        return () => {
+            isActive = false;
+        };
+    }, [revision]);
 
     if (!revision) return (
         <div className="w-full h-full flex flex-col gap-4 p-5 bg-[#09090b]">

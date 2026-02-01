@@ -2,14 +2,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Loader2, FileText } from 'lucide-react';
+import { Search, Loader2, FileText, Shuffle } from 'lucide-react';
 import { fetchSearchSuggestions, SearchSuggestion } from '@/lib/wikiApi';
 
 interface SearchAutocompleteProps {
     value: string;
     onChange: (value: string) => void;
     onSelect: (title: string) => void;
+    onRandom?: () => void;
     placeholder?: string;
 }
 
@@ -17,6 +19,7 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
     value,
     onChange,
     onSelect,
+    onRandom,
     placeholder = 'Search Wikipedia article...',
 }) => {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
@@ -144,35 +147,47 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
 
     return (
         <div ref={containerRef} className="relative w-full">
-            <div className="relative group">
-                <Search
-                    className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
-                        isOpen ? 'text-white/50' : 'text-white/30 group-focus-within:text-white/50'
-                    }`}
-                    size={16}
-                />
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={value}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    onFocus={handleFocus}
-                    placeholder={placeholder}
-                    className={`w-full bg-white/[0.06] border border-white/[0.08] py-2 md:py-2 pl-9 pr-8 focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all text-sm placeholder:text-white/30 ${
-                        isOpen ? 'rounded-t-lg rounded-b-none border-b-transparent' : 'rounded-lg'
-                    }`}
-                    autoComplete="off"
-                />
-                {isLoading && (
-                    <motion.div
-                        className="absolute right-3 top-1/2 -translate-y-1/2"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+            <div className="flex items-center gap-2">
+                <div className="relative group flex-1">
+                    <Search
+                        className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
+                            isOpen ? 'text-white/50' : 'text-white/30 group-focus-within:text-white/50'
+                        }`}
+                        size={16}
+                    />
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={value}
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDown}
+                        onFocus={handleFocus}
+                        placeholder={placeholder}
+                        className={`w-full bg-white/[0.06] border border-white/[0.08] py-2 md:py-2 pl-9 pr-8 focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all text-sm placeholder:text-white/30 ${
+                            isOpen ? 'rounded-t-lg rounded-b-none border-b-transparent' : 'rounded-lg'
+                        }`}
+                        autoComplete="off"
+                    />
+                    {isLoading && (
+                        <motion.div
+                            className="absolute right-3 top-1/2 -translate-y-1/2"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                        >
+                            <Loader2 className="animate-spin text-white/40" size={14} />
+                        </motion.div>
+                    )}
+                </div>
+                {onRandom && (
+                    <button
+                        type="button"
+                        onClick={onRandom}
+                        className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.08] hover:border-white/20 transition-all"
+                        title="Random article"
                     >
-                        <Loader2 className="animate-spin text-white/40" size={14} />
-                    </motion.div>
+                        <Shuffle size={16} />
+                    </button>
                 )}
             </div>
 
@@ -199,9 +214,12 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
                                         onMouseEnter={() => setSelectedIndex(index)}
                                     >
                                         {suggestion.thumbnail ? (
-                                            <img
+                                            <Image
                                                 src={suggestion.thumbnail}
-                                                alt=""
+                                                alt={suggestion.title}
+                                                width={32}
+                                                height={32}
+                                                sizes="32px"
                                                 className="w-8 h-8 rounded object-cover bg-white/10 flex-shrink-0"
                                             />
                                         ) : (
