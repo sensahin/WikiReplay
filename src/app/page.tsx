@@ -18,6 +18,8 @@ import { Loader2, History, Github, Menu, X, Settings } from 'lucide-react';
 type HighlightIntensity = 'subtle' | 'vivid' | 'flat';
 type ViewStyle = 'inline' | 'split';
 type ViewMode = 'clean' | 'balanced' | 'detail';
+const minRevisionLimit = 500;
+const maxRevisionLimit = 50000;
 
 type ViewerSettings = {
   showLinks: boolean;
@@ -29,6 +31,7 @@ type ViewerSettings = {
   autoScroll: boolean;
   fontSize: number;
   lineHeight: number;
+  maxRevisions: number;
   playbackSpeed: number;
   includeMinor: boolean;
   includeBots: boolean;
@@ -67,6 +70,7 @@ const defaultViewerSettings: ViewerSettings = {
   autoScroll: true,
   fontSize: 16,
   lineHeight: 1.9,
+  maxRevisions: 50000,
   playbackSpeed: 1,
   includeMinor: true,
   includeBots: true,
@@ -225,6 +229,7 @@ export default function Home() {
   const [autoScroll, setAutoScroll] = useState(defaultViewerSettings.autoScroll);
   const [fontSize, setFontSize] = useState(defaultViewerSettings.fontSize);
   const [lineHeight, setLineHeight] = useState(defaultViewerSettings.lineHeight);
+  const [maxRevisions, setMaxRevisions] = useState(defaultViewerSettings.maxRevisions);
   const [playbackSpeed, setPlaybackSpeed] = useState(defaultViewerSettings.playbackSpeed);
   const [includeMinor, setIncludeMinor] = useState(defaultViewerSettings.includeMinor);
   const [includeBots, setIncludeBots] = useState(defaultViewerSettings.includeBots);
@@ -284,6 +289,10 @@ export default function Home() {
         const fallback = getFallback(prev, defaultViewerSettings.lineHeight);
         return clampNumber(settings.lineHeight ?? fallback, 1.4, 2.2, fallback);
       });
+      setMaxRevisions((prev) => {
+        const fallback = getFallback(prev, defaultViewerSettings.maxRevisions);
+        return clampNumber(settings.maxRevisions ?? fallback, minRevisionLimit, maxRevisionLimit, fallback);
+      });
       setPlaybackSpeed((prev) => {
         const fallback = getFallback(prev, defaultViewerSettings.playbackSpeed);
         return clampNumber(settings.playbackSpeed ?? fallback, 0.5, 3, fallback);
@@ -335,6 +344,7 @@ export default function Home() {
         autoScroll: typeof settingsData.autoScroll === 'boolean' ? settingsData.autoScroll : undefined,
         fontSize: settingsData.fontSize,
         lineHeight: settingsData.lineHeight,
+        maxRevisions: settingsData.maxRevisions,
         playbackSpeed: settingsData.playbackSpeed,
         includeMinor: typeof settingsData.includeMinor === 'boolean' ? settingsData.includeMinor : undefined,
         includeBots: typeof settingsData.includeBots === 'boolean' ? settingsData.includeBots : undefined,
@@ -371,6 +381,7 @@ export default function Home() {
         autoScroll,
         fontSize,
         lineHeight,
+        maxRevisions,
         playbackSpeed,
         includeMinor,
         includeBots,
@@ -394,6 +405,7 @@ export default function Home() {
     autoScroll,
     fontSize,
     lineHeight,
+    maxRevisions,
     playbackSpeed,
     includeMinor,
     includeBots,
@@ -404,22 +416,24 @@ export default function Home() {
     editRangeEnd,
   ]);
 
-  const initialHistoryKey = title ? ['history-initial', title] : null;
+  const initialHistoryLimit = Math.min(minRevisionLimit, maxRevisions);
+  const initialHistoryKey = title ? ['history-initial', title, initialHistoryLimit] : null;
   const { data: initialHistory, isLoading: isInitialHistoryLoading, error: historyError } = useSWR(
     initialHistoryKey,
     () => {
       setLoadingProgress(null);
-      return fetchRevisionHistory(title ?? '', 500, false, (progress) => {
+      return fetchRevisionHistory(title ?? '', initialHistoryLimit, false, (progress) => {
         setLoadingProgress(progress);
       });
     },
     { revalidateOnFocus: false }
   );
 
+  const shouldFetchFullHistory = Boolean(initialHistory && maxRevisions > initialHistoryLimit);
   const { data: fullHistory } = useSWR(
-    initialHistory ? ['history-full', title] : null,
+    shouldFetchFullHistory ? ['history-full', title, maxRevisions] : null,
     () => {
-      return fetchRevisionHistory(title ?? '', 50000, true, (progress) => {
+      return fetchRevisionHistory(title ?? '', maxRevisions, true, (progress) => {
         if (progress.batch?.length) {
           fullHistoryRef.current = [...fullHistoryRef.current, ...progress.batch];
           setRevisions(fullHistoryRef.current);
@@ -550,7 +564,7 @@ export default function Home() {
     setIsTransitioning(false);
     setLoadingProgress(null);
     fullHistoryRef.current = [];
-  }, [title]);
+  }, [title, maxRevisions]);
 
   useEffect(() => {
     if (!initialHistory) return;
@@ -957,6 +971,47 @@ export default function Home() {
                           />
                         </button>
                       </label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">History</div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[11px] text-white/60">
+                          <span>Max revisions</span>
+                          <span>{maxRevisions.toLocaleString()}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={minRevisionLimit}
+                          max={maxRevisionLimit}
+                          step={500}
+                          value={maxRevisions}
+                          onChange={(event) =>
+                            setMaxRevisions(
+                              Math.round(
+                                clampNumber(event.target.value, minRevisionLimit, maxRevisionLimit, defaultViewerSettings.maxRevisions)
+                              )
+                            )
+                          }
+                          className="w-full accent-blue-500"
+                        />
+                        <input
+                          type="number"
+                          min={minRevisionLimit}
+                          max={maxRevisionLimit}
+                          step={500}
+                          value={maxRevisions}
+                          onChange={(event) =>
+                            setMaxRevisions(
+                              Math.round(
+                                clampNumber(event.target.value, minRevisionLimit, maxRevisionLimit, defaultViewerSettings.maxRevisions)
+                              )
+                            )
+                          }
+                          className="w-full rounded-md border border-white/[0.08] bg-white/[0.06] px-2 py-1 text-[11px] text-white/80"
+                        />
+                        <div className="text-[10px] text-white/40">Higher values load more history but take longer.</div>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
