@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useTransition } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, fetchRevisionExternalLinks, Revision, isIPAddress, RevisionProgress } from '@/lib/wikiApi';
 import { calculateDiff, ExtendedChange, extractInfoboxes, InfoboxData } from '@/lib/diffUtils';
@@ -244,21 +245,37 @@ export default function Home() {
   const settingsRef = useRef<HTMLDivElement>(null);
   const scrollToChangeRef = useRef<(() => void) | null>(null);
   const fullHistoryRef = useRef<Revision[]>([]);
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // Load a random article on initial mount
+  // Load article from URL or fetch random on initial mount
   useEffect(() => {
-    const loadRandomArticle = async () => {
-      try {
-        const randomTitle = await fetchRandomArticle();
-        setTitle(randomTitle);
-        setSearchInput(randomTitle);
-      } catch {
-        // Fallback to a default article if random fetch fails
-        setTitle('Wikipedia');
-        setSearchInput('Wikipedia');
+    const loadInitialArticle = async () => {
+      // Check if there's an article in the URL path (e.g., /World_War_II)
+      const pathArticle = pathname && pathname !== '/' ? decodeURIComponent(pathname.slice(1)) : null;
+      
+      if (pathArticle) {
+        // Load article from URL
+        setTitle(pathArticle);
+        setSearchInput(pathArticle);
+      } else {
+        // No article in URL, load random
+        try {
+          const randomTitle = await fetchRandomArticle();
+          setTitle(randomTitle);
+          setSearchInput(randomTitle);
+          // Update URL without reload
+          window.history.replaceState(null, '', `/${encodeURIComponent(randomTitle)}`);
+        } catch {
+          // Fallback to a default article if random fetch fails
+          setTitle('Wikipedia');
+          setSearchInput('Wikipedia');
+          window.history.replaceState(null, '', '/Wikipedia');
+        }
       }
     };
-    loadRandomArticle();
+    loadInitialArticle();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -672,7 +689,10 @@ export default function Home() {
 
   const handleSelectArticle = (articleTitle: string) => {
     if (articleTitle.trim() && articleTitle.trim() !== title) {
-      setTitle(articleTitle.trim());
+      const newTitle = articleTitle.trim();
+      setTitle(newTitle);
+      // Update URL to reflect the new article
+      window.history.pushState(null, '', `/${encodeURIComponent(newTitle)}`);
     }
   };
 
@@ -682,6 +702,8 @@ export default function Home() {
       const randomTitle = await fetchRandomArticle();
       setSearchInput(randomTitle);
       setTitle(randomTitle);
+      // Update URL to reflect the new article
+      window.history.pushState(null, '', `/${encodeURIComponent(randomTitle)}`);
     } catch {
       setError('Failed to fetch random article');
     } finally {
@@ -1212,6 +1234,7 @@ export default function Home() {
                     autoScroll={autoScroll}
                     fontSize={fontSize}
                     lineHeight={lineHeight}
+                    onArticleClick={handleSelectArticle}
                   />
                 </motion.div>
               )}

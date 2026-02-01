@@ -16,6 +16,7 @@ interface MarkdownRendererProps {
   showLinks: boolean;
   showImages: boolean;
   highlightClasses: HighlightClasses;
+  onArticleClick?: (articleTitle: string) => void;
 }
 
 // Helper to recursively check if children contain an image element
@@ -37,7 +38,7 @@ const containsImage = (children: React.ReactNode): boolean => {
   return false;
 };
 
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks, showImages, highlightClasses }) => {
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks, showImages, highlightClasses, onArticleClick }) => {
   const sanitizeSchema = useMemo(() => {
     const baseTags = defaultSchema.tagNames ?? [];
     return {
@@ -99,17 +100,40 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks
               )}
             </figure>
           ) : null,
-        a: (props) =>
-          showLinks ? (
+        a: (props) => {
+          if (!showLinks) {
+            return <span>{props.children}</span>;
+          }
+          
+          const href = props.href || '';
+          // Check if this is an internal Wikipedia link (e.g., /wiki/Article_Name or ./Article_Name)
+          const wikiLinkMatch = href.match(/^(?:\.\/|\/wiki\/)(.+)$/);
+          
+          if (wikiLinkMatch && onArticleClick) {
+            const articleTitle = decodeURIComponent(wikiLinkMatch[1].replace(/_/g, ' '));
+            return (
+              <a
+                {...props}
+                href={`/${encodeURIComponent(articleTitle)}`}
+                className="text-blue-300 hover:text-blue-200 underline underline-offset-2 cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onArticleClick(articleTitle);
+                }}
+              />
+            );
+          }
+          
+          // External link - open in new tab
+          return (
             <a
               {...props}
               className="text-blue-300 hover:text-blue-200 underline underline-offset-2"
               target="_blank"
               rel="noopener noreferrer"
             />
-          ) : (
-            <span>{props.children}</span>
-          ),
+          );
+        },
       }}
     >
       {markdown}

@@ -13,8 +13,29 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WikiReplay - Watch Wikipedia Articles Evolve",
+  title: {
+    default: "WikiReplay - Watch Wikipedia Articles Evolve",
+    template: "%s | WikiReplay",
+  },
   description: "Visualize the complete edit history of any Wikipedia article. Watch how articles evolved from their first edit to today.",
+  keywords: ["Wikipedia", "edit history", "article evolution", "wiki viewer", "revision history", "Wikipedia timeline"],
+  authors: [{ name: "WikiReplay" }],
+  openGraph: {
+    title: "WikiReplay - Watch Wikipedia Articles Evolve",
+    description: "Visualize the complete edit history of any Wikipedia article. Watch how articles evolved from their first edit to today.",
+    type: "website",
+    siteName: "WikiReplay",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WikiReplay - Watch Wikipedia Articles Evolve",
+    description: "Visualize the complete edit history of any Wikipedia article.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

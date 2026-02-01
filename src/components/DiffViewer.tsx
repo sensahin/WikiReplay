@@ -26,6 +26,7 @@ interface DiffViewerProps {
     autoScroll?: boolean;
     fontSize?: number;
     lineHeight?: number;
+    onArticleClick?: (articleTitle: string) => void;
 }
 
 const DiffViewerComponent: React.FC<DiffViewerProps> = ({
@@ -41,6 +42,7 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
     autoScroll = true,
     fontSize = 15,
     lineHeight = 1.8,
+    onArticleClick,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const wrapInline = useCallback((value: string, tag: 'ins' | 'del') => {
@@ -198,6 +200,7 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
                                         showLinks={showLinks}
                                         showImages={showImages}
                                         highlightClasses={highlightClasses}
+                                        onArticleClick={onArticleClick}
                                     />
                                 </Suspense>
                             </div>
@@ -209,6 +212,7 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
                                         showLinks={showLinks}
                                         showImages={showImages}
                                         highlightClasses={highlightClasses}
+                                        onArticleClick={onArticleClick}
                                     />
                                 </Suspense>
                             </div>
@@ -232,6 +236,7 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
                                     showLinks={showLinks}
                                     showImages={showImages}
                                     highlightClasses={highlightClasses}
+                                    onArticleClick={onArticleClick}
                                 />
                             </Suspense>
                             {hasInfoboxes && <div className="clear-both" />}
