@@ -14,7 +14,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { SearchAutocomplete } from '@/components/SearchAutocomplete';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 import { preloadMarkdownRenderer } from '@/components/MarkdownRenderer';
-import { Loader2, History, Github, Menu, X, Settings } from 'lucide-react';
+import { Loader2, History, Github, Menu, X, Settings, Share2, Check, Link as LinkIcon } from 'lucide-react';
 
 type HighlightIntensity = 'subtle' | 'vivid' | 'flat';
 type ViewStyle = 'inline' | 'split';
@@ -245,9 +245,14 @@ export default function Home() {
   const [editRangeEnd, setEditRangeEnd] = useState<number | null>(defaultViewerSettings.editRangeEnd);
   const [isTitleLoading, setIsTitleLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [sharedLinkAutoPlay, setSharedLinkAutoPlay] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const shareRef = useRef<HTMLDivElement>(null);
   const scrollToChangeRef = useRef<(() => void) | null>(null);
   const fullHistoryRef = useRef<Revision[]>([]);
+  const sharedRevisionRef = useRef<number | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -580,6 +585,114 @@ export default function Home() {
   }, [currentSettings]);
 
   useOnClickOutside(settingsRef, () => setSettingsOpen(false), settingsOpen);
+  useOnClickOutside(shareRef, () => setShareOpen(false), shareOpen);
+
+  // Generate shareable URL with current state
+  const getShareUrl = useCallback(() => {
+    if (!title || !currentRevision) return '';
+    
+    const params = new URLSearchParams();
+    params.set('rev', currentRevision.revid.toString());
+    if (playbackSpeed !== 1) params.set('speed', playbackSpeed.toString());
+    
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${baseUrl}/${encodeURIComponent(title)}?${params.toString()}`;
+  }, [title, currentRevision, playbackSpeed]);
+
+  // Handle copying share link
+  const handleCopyLink = useCallback(async () => {
+    const url = getShareUrl();
+    if (!url) return;
+    
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [getShareUrl]);
+
+  // Handle sharing to social platforms
+  const handleShare = useCallback((platform: 'twitter' | 'reddit' | 'native') => {
+    const url = getShareUrl();
+    if (!url) return;
+    
+    const text = `Watch how "${title}" evolved on Wikipedia`;
+    
+    switch (platform) {
+      case 'twitter':
+        window.open(
+          `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+          '_blank',
+          'width=550,height=420'
+        );
+        break;
+      case 'reddit':
+        window.open(
+          `https://reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(text)}`,
+          '_blank'
+        );
+        break;
+      case 'native':
+        if (navigator.share) {
+          navigator.share({ title: text, url }).catch(() => {});
+        }
+        break;
+    }
+    setShareOpen(false);
+  }, [getShareUrl, title]);
+
+  // Read share params from URL on load
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const params = new URLSearchParams(window.location.search);
+    const revParam = params.get('rev');
+    const speedParam = params.get('speed');
+    
+    if (speedParam) {
+      const speed = parseFloat(speedParam);
+      if (!isNaN(speed) && speed > 0 && speed <= 10) {
+        setPlaybackSpeed(speed);
+      }
+    }
+    
+    // Store the target revision to navigate to once revisions are loaded
+    if (revParam) {
+      const targetRevId = parseInt(revParam, 10);
+      if (!isNaN(targetRevId)) {
+        sharedRevisionRef.current = targetRevId;
+      }
+    }
+  }, []);
+
+  // Navigate to shared revision once revisions are loaded and trigger auto-play
+  useEffect(() => {
+    const targetRev = sharedRevisionRef.current;
+    if (targetRev && revisions.length > 0) {
+      const targetIndex = revisions.findIndex(r => r.revid === targetRev);
+      if (targetIndex !== -1) {
+        setCurrentIndex(targetIndex);
+        // Trigger auto-play for shared links (after a short delay to let the UI update)
+        setTimeout(() => {
+          setSharedLinkAutoPlay(true);
+          // Clean up URL params after starting playback
+          window.history.replaceState(null, '', window.location.pathname);
+        }, 500);
+      }
+      // Clear the ref so we don't keep navigating
+      sharedRevisionRef.current = null;
+    }
+  }, [revisions]);
 
   useEffect(() => {
     setError(null);
@@ -756,6 +869,83 @@ export default function Home() {
           >
             <Github size={18} />
           </a>
+
+          {/* Share button */}
+          <div ref={shareRef} className="relative">
+            <button
+              onClick={() => setShareOpen((open) => !open)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
+              title="Share"
+              disabled={!currentRevision}
+            >
+              <Share2 size={18} />
+            </button>
+            <AnimatePresence>
+              {shareOpen && currentRevision && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-2 w-72 rounded-lg border border-white/[0.08] bg-[#131316] shadow-xl p-3 z-50"
+                >
+                  <div className="space-y-3">
+                    <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Share this revision</div>
+                    
+                    {/* Copy link */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={getShareUrl()}
+                        className="flex-1 px-2.5 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-[12px] text-white/70 truncate focus:outline-none focus:border-blue-500/50"
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <button
+                        onClick={handleCopyLink}
+                        className={`px-2.5 py-1.5 rounded-md text-[12px] font-medium transition flex items-center gap-1.5 ${
+                          copied 
+                            ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                            : 'bg-white/[0.06] text-white/60 border border-white/[0.08] hover:text-white'
+                        }`}
+                      >
+                        {copied ? <Check size={14} /> : <LinkIcon size={14} />}
+                        {copied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+
+                    {/* Social share buttons */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleShare('twitter')}
+                        className="flex-1 px-2.5 py-2 rounded-md bg-[#1DA1F2]/10 text-[#1DA1F2] border border-[#1DA1F2]/20 text-[12px] font-medium hover:bg-[#1DA1F2]/20 transition"
+                      >
+                        𝕏 Twitter
+                      </button>
+                      <button
+                        onClick={() => handleShare('reddit')}
+                        className="flex-1 px-2.5 py-2 rounded-md bg-[#FF4500]/10 text-[#FF4500] border border-[#FF4500]/20 text-[12px] font-medium hover:bg-[#FF4500]/20 transition"
+                      >
+                        Reddit
+                      </button>
+                      {'share' in navigator && (
+                        <button
+                          onClick={() => handleShare('native')}
+                          className="flex-1 px-2.5 py-2 rounded-md bg-white/[0.06] text-white/60 border border-white/[0.08] text-[12px] font-medium hover:text-white transition"
+                        >
+                          More...
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="text-[10px] text-white/30 text-center">
+                      Sharing revision #{currentRevision.revid} of &ldquo;{title}&rdquo;
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           <div ref={settingsRef} className="relative">
             <button
@@ -1269,13 +1459,13 @@ export default function Home() {
           {/* Timeline */}
           <div className="fixed bottom-0 left-0 right-0 lg:right-[340px] z-40">
             <TimelineSlider
-              key={`${title ?? 'article'}-${autoPlay ? 'auto' : 'manual'}`}
+              key={`${title ?? 'article'}-${autoPlay ? 'auto' : 'manual'}-${sharedLinkAutoPlay ? 'shared' : ''}`}
               revisions={filteredRevisions}
               currentIndex={currentIndex}
               onChange={handleRevisionChange}
               isLoading={isBusy}
               playbackSpeed={playbackSpeed}
-              autoPlay={autoPlay}
+              autoPlay={autoPlay || sharedLinkAutoPlay}
             />
           </div>
         </div>
