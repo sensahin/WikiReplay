@@ -11,6 +11,72 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Smooth scrolling globally */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Fade transition class */
+.fade-transition {
+  transition: opacity 0.4s ease-in-out, filter 0.4s ease-in-out, transform 0.4s ease-in-out;
+}
+
+/* Highlighted change pulse animation */
+@keyframes highlightPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(16, 185, 129, 0.2);
+  }
+}
+
+.highlight-pulse {
+  animation: highlightPulse 2s ease-in-out infinite;
+}
+
+/* Added text glow */
+@keyframes addedGlow {
+  0%, 100% {
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+  }
+}
+
+.added-glow {
+  animation: addedGlow 2s ease-in-out infinite;
+}
+
+/* Removed text fade */
+@keyframes removedFade {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.removed-fade {
+  animation: removedFade 3s ease-in-out infinite;
+}
+
+/* Timeline glow effect */
+@keyframes timelineGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.4);
+  }
+}
+
+.timeline-glow {
+  animation: timelineGlow 3s ease-in-out infinite;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
