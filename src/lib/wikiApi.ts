@@ -113,6 +113,25 @@ export async function fetchRevisionHtml(revid: number): Promise<string> {
   return data.parse.text['*'];
 }
 
+export async function fetchRevisionExternalLinks(revid: number): Promise<string[]> {
+  const params = new URLSearchParams({
+    action: 'parse',
+    format: 'json',
+    oldid: revid.toString(),
+    prop: 'externallinks',
+    origin: '*',
+  });
+
+  try {
+    const response = await fetch(`${WIKI_API_URL}?${params.toString()}`);
+    const data = await response.json();
+    const links = data?.parse?.externallinks;
+    return Array.isArray(links) ? links : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface SearchSuggestion {
   title: string;
   description: string;

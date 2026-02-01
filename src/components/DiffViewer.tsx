@@ -14,8 +14,9 @@ interface DiffViewerProps {
     isTransitioning?: boolean;
     onScrollToChange?: (scrollFn: () => void) => void;
     showLinks?: boolean;
-    showRemoved?: boolean;
+    showImages?: boolean;
     highlightIntensity?: 'subtle' | 'vivid' | 'flat';
+    viewStyle?: 'inline' | 'split';
     autoScroll?: boolean;
     fontSize?: number;
     lineHeight?: number;
@@ -26,8 +27,9 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
     isTransitioning = false,
     onScrollToChange,
     showLinks = false,
-    showRemoved = true,
+    showImages = false,
     highlightIntensity = 'subtle',
+    viewStyle = 'inline',
     autoScroll = true,
     fontSize = 15,
     lineHeight = 1.8,
@@ -87,16 +89,44 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
         return diff
             .map((change) => {
                 if (change.added) return wrapChange(change.value, 'ins');
-                if (change.removed) return showRemoved ? wrapChange(change.value, 'del') : '';
+                if (change.removed) return wrapChange(change.value, 'del');
                 return change.value;
             })
             .join('');
-    }, [diff, showRemoved, wrapChange]);
+    }, [diff, wrapChange]);
 
-    const fallbackText = useMemo(
-        () => diffMarkdown.replace(/<\/?(ins|del)>/g, ''),
-        [diffMarkdown]
+    const leftMarkdown = useMemo(() => {
+        if (!diff.length) return '';
+        return diff
+            .map((change) => {
+                if (change.added) return '';
+                if (change.removed) return wrapChange(change.value, 'del');
+                return change.value;
+            })
+            .join('');
+    }, [diff, wrapChange]);
+
+    const rightMarkdown = useMemo(() => {
+        if (!diff.length) return '';
+        return diff
+            .map((change) => {
+                if (change.added) return wrapChange(change.value, 'ins');
+                if (change.removed) return '';
+                return change.value;
+            })
+            .join('');
+    }, [diff, wrapChange]);
+
+    const renderFallback = (
+        <div className="flex items-center gap-2 text-white/40 text-sm py-8">
+            <span className="h-2 w-2 rounded-full bg-white/30 animate-pulse" />
+            Rendering...
+        </div>
     );
+
+    const contentKey = viewStyle === 'split'
+        ? `${leftMarkdown.slice(0, 120)}-${rightMarkdown.slice(0, 120)}`
+        : diffMarkdown.slice(0, 200);
 
     const scrollToFirstChange = useCallback(() => {
         if (!containerRef.current) return;
@@ -140,21 +170,49 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
         >
             <AnimatePresence mode="wait">
                 <motion.article 
-                    key={diffMarkdown.slice(0, 200)}
-                    className="prose prose-invert max-w-none text-white/80 font-[system-ui]"
+                    key={contentKey}
+                    className="prose prose-invert max-w-none text-white/80 font-[system-ui] prose-p:my-3 prose-headings:mt-5 prose-headings:mb-3 prose-ul:my-3 prose-ol:my-3"
                     style={{ fontSize, lineHeight, contentVisibility: 'auto', containIntrinsicSize: '1000px' }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25 }}
                 >
-                    <Suspense fallback={<div className="whitespace-pre-wrap text-white/70">{fallbackText}</div>}>
-                        <MarkdownRenderer
-                            markdown={diffMarkdown}
-                            showLinks={showLinks}
-                            highlightClasses={highlightClasses}
-                        />
-                    </Suspense>
+                    {viewStyle === 'split' ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                                <div className="text-[11px] uppercase tracking-wider text-white/40 mb-2">Before</div>
+                                <Suspense fallback={renderFallback}>
+                                    <MarkdownRenderer
+                                        markdown={leftMarkdown}
+                                        showLinks={showLinks}
+                                        showImages={showImages}
+                                        highlightClasses={highlightClasses}
+                                    />
+                                </Suspense>
+                            </div>
+                            <div>
+                                <div className="text-[11px] uppercase tracking-wider text-white/40 mb-2">After</div>
+                                <Suspense fallback={renderFallback}>
+                                    <MarkdownRenderer
+                                        markdown={rightMarkdown}
+                                        showLinks={showLinks}
+                                        showImages={showImages}
+                                        highlightClasses={highlightClasses}
+                                    />
+                                </Suspense>
+                            </div>
+                        </div>
+                    ) : (
+                        <Suspense fallback={renderFallback}>
+                            <MarkdownRenderer
+                                markdown={diffMarkdown}
+                                showLinks={showLinks}
+                                showImages={showImages}
+                                highlightClasses={highlightClasses}
+                            />
+                        </Suspense>
+                    )}
                 </motion.article>
             </AnimatePresence>
         </motion.div>

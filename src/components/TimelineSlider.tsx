@@ -4,14 +4,38 @@
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Revision } from '@/lib/wikiApi';
-import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react';
+
+const utcDateFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+});
+
+const utcTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+});
+
+const utcMonthFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    month: 'long',
+    year: 'numeric',
+});
+
+const formatUtcDate = (timestamp: string) => utcDateFormatter.format(new Date(timestamp));
+const formatUtcTime = (timestamp: string) => utcTimeFormatter.format(new Date(timestamp));
+const formatUtcMonth = (timestamp: string) => utcMonthFormatter.format(new Date(timestamp));
 
 interface TimelineSliderProps {
     revisions: Revision[];
     currentIndex: number;
     onChange: (index: number) => void;
     isLoading?: boolean;
+    playbackSpeed?: number;
 }
 
 export const TimelineSlider: React.FC<TimelineSliderProps> = ({
@@ -19,6 +43,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
     currentIndex,
     onChange,
     isLoading = false,
+    playbackSpeed = 1,
 }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -26,6 +51,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
     const sliderRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        const intervalMs = Math.max(300, 1500 / Math.max(0.5, playbackSpeed));
         if (isPlaying && !isLoading) {
             playIntervalRef.current = setInterval(() => {
                 if (currentIndex < revisions.length - 1) {
@@ -33,14 +59,14 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
                 } else {
                     setIsPlaying(false);
                 }
-            }, 1500);
+            }, intervalMs);
         }
         return () => {
             if (playIntervalRef.current) {
                 clearInterval(playIntervalRef.current);
             }
         };
-    }, [isPlaying, currentIndex, revisions.length, onChange, isLoading]);
+    }, [isPlaying, currentIndex, revisions.length, onChange, isLoading, playbackSpeed]);
 
     const handlePrevious = useCallback(() => {
         if (currentIndex > 0 && !isLoading) {
@@ -156,7 +182,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
                 {/* Timeline info row */}
                 <div className="mt-2 md:mt-3 flex items-center justify-between">
                     <span className="text-[10px] md:text-[11px] text-white/30 hidden sm:block">
-                        {revisions.length > 0 && format(new Date(revisions[0].timestamp), 'MMM yyyy')}
+                        {revisions.length > 0 && formatUtcMonth(revisions[0].timestamp)}
                     </span>
                     
                     <AnimatePresence mode="wait">
@@ -169,10 +195,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
                         >
                             <div className="flex items-center gap-2 sm:gap-3">
                                 <span className="text-white font-medium">
-                                    {format(new Date(currentRevision.timestamp), 'MMM d, yyyy')}
-                                </span>
-                                <span className="text-white/30">
-                                    {format(new Date(currentRevision.timestamp), 'HH:mm')}
+                                    {formatUtcTime(currentRevision.timestamp)}, {formatUtcDate(currentRevision.timestamp)}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2 text-white/20 text-[11px] sm:text-sm">
@@ -187,7 +210,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
                     </AnimatePresence>
 
                     <span className="text-[10px] md:text-[11px] text-white/30 hidden sm:block">
-                        {revisions.length > 0 && format(new Date(revisions[revisions.length - 1].timestamp), 'MMM yyyy')}
+                        {revisions.length > 0 && formatUtcMonth(revisions[revisions.length - 1].timestamp)}
                     </span>
                 </div>
             </div>

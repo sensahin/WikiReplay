@@ -5,8 +5,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo, useTransition
 import useSWR from 'swr';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, Revision } from '@/lib/wikiApi';
-import { calculateDiff, ExtendedChange, DiffGranularity } from '@/lib/diffUtils';
+import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, fetchRevisionExternalLinks, Revision, isIPAddress } from '@/lib/wikiApi';
+import { calculateDiff, ExtendedChange } from '@/lib/diffUtils';
 import { TimelineSlider } from '@/components/TimelineSlider';
 import { DiffViewer } from '@/components/DiffViewer';
 import { Sidebar } from '@/components/Sidebar';
@@ -16,17 +16,43 @@ import { preloadMarkdownRenderer } from '@/components/MarkdownRenderer';
 import { Loader2, History, Github, Menu, X, Settings } from 'lucide-react';
 
 type HighlightIntensity = 'subtle' | 'vivid' | 'flat';
+type ViewStyle = 'inline' | 'split';
 type ViewMode = 'clean' | 'balanced' | 'detail';
 
 type ViewerSettings = {
   showLinks: boolean;
-  diffGranularity: DiffGranularity;
-  showRemoved: boolean;
+  showReferences: boolean;
+  showTemplates: boolean;
+  showImages: boolean;
   highlightIntensity: HighlightIntensity;
+  normalizeChanges: boolean;
+  viewStyle: ViewStyle;
   autoScroll: boolean;
   fontSize: number;
   lineHeight: number;
+  playbackSpeed: number;
+  includeMinor: boolean;
+  includeBots: boolean;
+  includeAnonymous: boolean;
+  dateFrom: string;
+  dateTo: string;
+  editRangeStart: number | null;
+  editRangeEnd: number | null;
 };
+
+type ViewModeSettings = Pick<
+  ViewerSettings,
+  | 'showLinks'
+  | 'showReferences'
+  | 'showTemplates'
+  | 'showImages'
+  | 'highlightIntensity'
+  | 'normalizeChanges'
+  | 'viewStyle'
+  | 'autoScroll'
+  | 'fontSize'
+  | 'lineHeight'
+>;
 
 type StoredViewerSettings = {
   version: number;
@@ -35,27 +61,41 @@ type StoredViewerSettings = {
 
 const defaultViewerSettings: ViewerSettings = {
   showLinks: false,
-  diffGranularity: 'sentence',
-  showRemoved: true,
-  highlightIntensity: 'flat',
+  showReferences: false,
+  showTemplates: false,
+  showImages: false,
+  highlightIntensity: 'subtle',
+  normalizeChanges: false,
+  viewStyle: 'inline',
   autoScroll: true,
   fontSize: 16,
   lineHeight: 1.9,
+  playbackSpeed: 1,
+  includeMinor: true,
+  includeBots: true,
+  includeAnonymous: true,
+  dateFrom: '',
+  dateTo: '',
+  editRangeStart: null,
+  editRangeEnd: null,
 };
 
-const viewerSettingsSchemaVersion = 1;
+const viewerSettingsSchemaVersion = 2;
 const viewerSettingsStorageKey = 'wikireplay:viewerSettings';
 const viewerSettingsMigratedKey = 'wikireplay:viewerSettings:migrated';
 
 let cachedViewerSettings: StoredViewerSettings | null | undefined;
 let cachedMigratedVersion: number | null | undefined;
 
-const viewModes: Record<ViewMode, ViewerSettings> = {
+const viewModes: Record<ViewMode, ViewModeSettings> = {
   clean: {
     showLinks: false,
-    diffGranularity: 'sentence',
-    showRemoved: true,
+    showReferences: false,
+    showTemplates: false,
+    showImages: false,
     highlightIntensity: 'flat',
+    normalizeChanges: true,
+    viewStyle: 'inline',
     autoScroll: true,
     fontSize: 16,
     lineHeight: 1.9,
@@ -63,9 +103,12 @@ const viewModes: Record<ViewMode, ViewerSettings> = {
   balanced: defaultViewerSettings,
   detail: {
     showLinks: true,
-    diffGranularity: 'word',
-    showRemoved: true,
+    showReferences: true,
+    showTemplates: true,
+    showImages: true,
     highlightIntensity: 'vivid',
+    normalizeChanges: false,
+    viewStyle: 'split',
     autoScroll: true,
     fontSize: 15,
     lineHeight: 1.8,
@@ -78,11 +121,60 @@ const clampNumber = (value: unknown, min: number, max: number, fallback: number)
   return Math.min(max, Math.max(min, num));
 };
 
-const isSettingsMatch = (a: ViewerSettings, b: ViewerSettings) =>
+const parseEditRangeValue = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.floor(num);
+};
+
+const parseDateInput = (value: string, endOfDay = false): Date | null => {
+  if (!value) return null;
+  const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00';
+  const parsed = new Date(`${value}${suffix}`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+const isBotRevision = (revision: Revision) => {
+  if (revision.tags?.some((tag) => tag.toLowerCase().includes('bot'))) return true;
+  return /bot$/i.test(revision.user);
+};
+
+const externalLinksHeadingRegex = /^==\s*External links\s*==\s*$/im;
+
+const buildExternalLinksList = (links: string[]) => links.map((url) => `* ${url}`).join('\n');
+
+const injectExternalLinks = (text: string, links: string[] | undefined, enabled: boolean) => {
+  if (!enabled || !text || !links?.length) return text;
+  const list = buildExternalLinksList(links);
+  const match = externalLinksHeadingRegex.exec(text);
+
+  if (!match) {
+    return `${text.trimEnd()}\n\n==External links==\n${list}\n`;
+  }
+
+  const headingLineEnd = text.indexOf('\n', match.index);
+  const insertPos = headingLineEnd === -1 ? text.length : headingLineEnd + 1;
+  const afterHeading = text.slice(insertPos);
+  const nextHeading = afterHeading.match(/^\s*==[^=].*==\s*$/m);
+  const sectionBody = nextHeading ? afterHeading.slice(0, nextHeading.index) : afterHeading;
+  const hasLinks = /https?:\/\//i.test(sectionBody);
+  if (hasLinks) return text;
+
+  const prefix = text.slice(0, insertPos).replace(/\n*$/, '\n');
+  const suffix = nextHeading ? afterHeading.slice(nextHeading.index) : '';
+  return `${prefix}\n${list}\n\n${suffix}`.trimEnd();
+};
+
+const isSettingsMatch = (a: ViewModeSettings, b: ViewModeSettings) =>
   a.showLinks === b.showLinks &&
-  a.diffGranularity === b.diffGranularity &&
-  a.showRemoved === b.showRemoved &&
+  a.showReferences === b.showReferences &&
+  a.showTemplates === b.showTemplates &&
+  a.showImages === b.showImages &&
   a.highlightIntensity === b.highlightIntensity &&
+  a.normalizeChanges === b.normalizeChanges &&
+  a.viewStyle === b.viewStyle &&
   a.autoScroll === b.autoScroll &&
   a.fontSize === b.fontSize &&
   a.lineHeight === b.lineHeight;
@@ -130,12 +222,23 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showLinks, setShowLinks] = useState(defaultViewerSettings.showLinks);
-  const [diffGranularity, setDiffGranularity] = useState<DiffGranularity>(defaultViewerSettings.diffGranularity);
-  const [showRemoved, setShowRemoved] = useState(defaultViewerSettings.showRemoved);
+  const [showReferences, setShowReferences] = useState(defaultViewerSettings.showReferences);
+  const [showTemplates, setShowTemplates] = useState(defaultViewerSettings.showTemplates);
+  const [showImages, setShowImages] = useState(defaultViewerSettings.showImages);
   const [highlightIntensity, setHighlightIntensity] = useState<HighlightIntensity>(defaultViewerSettings.highlightIntensity);
+  const [normalizeChanges, setNormalizeChanges] = useState(defaultViewerSettings.normalizeChanges);
+  const [viewStyle, setViewStyle] = useState<ViewStyle>(defaultViewerSettings.viewStyle);
   const [autoScroll, setAutoScroll] = useState(defaultViewerSettings.autoScroll);
   const [fontSize, setFontSize] = useState(defaultViewerSettings.fontSize);
   const [lineHeight, setLineHeight] = useState(defaultViewerSettings.lineHeight);
+  const [playbackSpeed, setPlaybackSpeed] = useState(defaultViewerSettings.playbackSpeed);
+  const [includeMinor, setIncludeMinor] = useState(defaultViewerSettings.includeMinor);
+  const [includeBots, setIncludeBots] = useState(defaultViewerSettings.includeBots);
+  const [includeAnonymous, setIncludeAnonymous] = useState(defaultViewerSettings.includeAnonymous);
+  const [dateFrom, setDateFrom] = useState(defaultViewerSettings.dateFrom);
+  const [dateTo, setDateTo] = useState(defaultViewerSettings.dateTo);
+  const [editRangeStart, setEditRangeStart] = useState<number | null>(defaultViewerSettings.editRangeStart);
+  const [editRangeEnd, setEditRangeEnd] = useState<number | null>(defaultViewerSettings.editRangeEnd);
   const [isTitleLoading, setIsTitleLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -157,45 +260,99 @@ export default function Home() {
     loadRandomArticle();
   }, []);
 
-  const applyViewerSettings = useCallback((settings: Partial<ViewerSettings>) => {
-    setShowLinks(settings.showLinks ?? defaultViewerSettings.showLinks);
-    setDiffGranularity(settings.diffGranularity ?? defaultViewerSettings.diffGranularity);
-    setShowRemoved(settings.showRemoved ?? defaultViewerSettings.showRemoved);
-    setHighlightIntensity(settings.highlightIntensity ?? defaultViewerSettings.highlightIntensity);
-    setAutoScroll(settings.autoScroll ?? defaultViewerSettings.autoScroll);
-    setFontSize(clampNumber(settings.fontSize, 12, 20, defaultViewerSettings.fontSize));
-    setLineHeight(clampNumber(settings.lineHeight, 1.4, 2.2, defaultViewerSettings.lineHeight));
+  useEffect(() => {
+    preloadMarkdownRenderer();
   }, []);
+
+  const applyViewerSettings = useCallback(
+    (settings: Partial<ViewerSettings>, options?: { useDefaults?: boolean }) => {
+      const useDefaults = options?.useDefaults ?? false;
+      const getFallback = <T,>(prev: T, fallback: T) => (useDefaults ? fallback : prev);
+
+      setShowLinks((prev) => settings.showLinks ?? getFallback(prev, defaultViewerSettings.showLinks));
+      setShowReferences((prev) => settings.showReferences ?? getFallback(prev, defaultViewerSettings.showReferences));
+      setShowTemplates((prev) => settings.showTemplates ?? getFallback(prev, defaultViewerSettings.showTemplates));
+      setShowImages((prev) => settings.showImages ?? getFallback(prev, defaultViewerSettings.showImages));
+      setHighlightIntensity((prev) => settings.highlightIntensity ?? getFallback(prev, defaultViewerSettings.highlightIntensity));
+      setNormalizeChanges((prev) => settings.normalizeChanges ?? getFallback(prev, defaultViewerSettings.normalizeChanges));
+      setViewStyle((prev) => {
+        const fallback = getFallback(prev, defaultViewerSettings.viewStyle);
+        return settings.viewStyle === 'inline' || settings.viewStyle === 'split'
+          ? settings.viewStyle
+          : fallback;
+      });
+      setAutoScroll((prev) => settings.autoScroll ?? getFallback(prev, defaultViewerSettings.autoScroll));
+      setFontSize((prev) => {
+        const fallback = getFallback(prev, defaultViewerSettings.fontSize);
+        return clampNumber(settings.fontSize ?? fallback, 12, 20, fallback);
+      });
+      setLineHeight((prev) => {
+        const fallback = getFallback(prev, defaultViewerSettings.lineHeight);
+        return clampNumber(settings.lineHeight ?? fallback, 1.4, 2.2, fallback);
+      });
+      setPlaybackSpeed((prev) => {
+        const fallback = getFallback(prev, defaultViewerSettings.playbackSpeed);
+        return clampNumber(settings.playbackSpeed ?? fallback, 0.5, 3, fallback);
+      });
+      setIncludeMinor((prev) => settings.includeMinor ?? getFallback(prev, defaultViewerSettings.includeMinor));
+      setIncludeBots((prev) => settings.includeBots ?? getFallback(prev, defaultViewerSettings.includeBots));
+      setIncludeAnonymous((prev) => settings.includeAnonymous ?? getFallback(prev, defaultViewerSettings.includeAnonymous));
+      setDateFrom((prev) => (typeof settings.dateFrom === 'string' ? settings.dateFrom : getFallback(prev, defaultViewerSettings.dateFrom)));
+      setDateTo((prev) => (typeof settings.dateTo === 'string' ? settings.dateTo : getFallback(prev, defaultViewerSettings.dateTo)));
+      setEditRangeStart((prev) => {
+        if (settings.editRangeStart !== undefined) {
+          return parseEditRangeValue(settings.editRangeStart);
+        }
+        return getFallback(prev, defaultViewerSettings.editRangeStart);
+      });
+      setEditRangeEnd((prev) => {
+        if (settings.editRangeEnd !== undefined) {
+          return parseEditRangeValue(settings.editRangeEnd);
+        }
+        return getFallback(prev, defaultViewerSettings.editRangeEnd);
+      });
+    },
+    []
+  );
 
   useEffect(() => {
     const storedSettings = readStoredViewerSettings();
     const migratedVersion = readMigratedVersion();
     if (storedSettings) {
       const settingsData =
-        typeof storedSettings.version === 'number' &&
-        storedSettings.version >= viewerSettingsSchemaVersion &&
-        storedSettings.data
+        storedSettings.data && typeof storedSettings.data === 'object'
           ? storedSettings.data
           : (storedSettings as Partial<ViewerSettings>);
       applyViewerSettings({
         showLinks: typeof settingsData.showLinks === 'boolean' ? settingsData.showLinks : undefined,
-        diffGranularity:
-          settingsData.diffGranularity === 'word' ||
-          settingsData.diffGranularity === 'sentence' ||
-          settingsData.diffGranularity === 'line'
-            ? settingsData.diffGranularity
-            : undefined,
-        showRemoved: typeof settingsData.showRemoved === 'boolean' ? settingsData.showRemoved : undefined,
+        showReferences: typeof settingsData.showReferences === 'boolean' ? settingsData.showReferences : undefined,
+        showTemplates: typeof settingsData.showTemplates === 'boolean' ? settingsData.showTemplates : undefined,
+        showImages: typeof settingsData.showImages === 'boolean' ? settingsData.showImages : undefined,
         highlightIntensity:
           settingsData.highlightIntensity === 'subtle' ||
           settingsData.highlightIntensity === 'vivid' ||
           settingsData.highlightIntensity === 'flat'
             ? settingsData.highlightIntensity
             : undefined,
+        normalizeChanges:
+          typeof settingsData.normalizeChanges === 'boolean' ? settingsData.normalizeChanges : undefined,
+        viewStyle:
+          settingsData.viewStyle === 'inline' || settingsData.viewStyle === 'split'
+            ? settingsData.viewStyle
+            : undefined,
         autoScroll: typeof settingsData.autoScroll === 'boolean' ? settingsData.autoScroll : undefined,
         fontSize: settingsData.fontSize,
         lineHeight: settingsData.lineHeight,
-      });
+        playbackSpeed: settingsData.playbackSpeed,
+        includeMinor: typeof settingsData.includeMinor === 'boolean' ? settingsData.includeMinor : undefined,
+        includeBots: typeof settingsData.includeBots === 'boolean' ? settingsData.includeBots : undefined,
+        includeAnonymous:
+          typeof settingsData.includeAnonymous === 'boolean' ? settingsData.includeAnonymous : undefined,
+        dateFrom: typeof settingsData.dateFrom === 'string' ? settingsData.dateFrom : undefined,
+        dateTo: typeof settingsData.dateTo === 'string' ? settingsData.dateTo : undefined,
+        editRangeStart: settingsData.editRangeStart,
+        editRangeEnd: settingsData.editRangeEnd,
+      }, { useDefaults: true });
       if (migratedVersion !== viewerSettingsSchemaVersion) {
         localStorage.setItem(viewerSettingsMigratedKey, String(viewerSettingsSchemaVersion));
         cachedMigratedVersion = viewerSettingsSchemaVersion;
@@ -214,18 +371,48 @@ export default function Home() {
       version: viewerSettingsSchemaVersion,
       data: {
         showLinks,
-        diffGranularity,
-        showRemoved,
+        showReferences,
+        showTemplates,
+        showImages,
         highlightIntensity,
+        normalizeChanges,
+        viewStyle,
         autoScroll,
         fontSize,
         lineHeight,
+        playbackSpeed,
+        includeMinor,
+        includeBots,
+        includeAnonymous,
+        dateFrom,
+        dateTo,
+        editRangeStart,
+        editRangeEnd,
       },
     };
     localStorage.setItem(viewerSettingsStorageKey, JSON.stringify(payload));
     localStorage.setItem(viewerSettingsMigratedKey, String(viewerSettingsSchemaVersion));
     updateStoredViewerSettingsCache(payload);
-  }, [showLinks, diffGranularity, showRemoved, highlightIntensity, autoScroll, fontSize, lineHeight]);
+  }, [
+    showLinks,
+    showReferences,
+    showTemplates,
+    showImages,
+    highlightIntensity,
+    normalizeChanges,
+    viewStyle,
+    autoScroll,
+    fontSize,
+    lineHeight,
+    playbackSpeed,
+    includeMinor,
+    includeBots,
+    includeAnonymous,
+    dateFrom,
+    dateTo,
+    editRangeStart,
+    editRangeEnd,
+  ]);
 
   const historyKey = title ? ['history', title, 500] : null;
   const { data: initialHistory, isLoading: isHistoryLoading, error: historyError } = useSWR(
@@ -240,8 +427,60 @@ export default function Home() {
     { revalidateOnFocus: false }
   );
 
-  const currentRevision = revisions[currentIndex];
-  const prevRevision = revisions[currentIndex - 1];
+  const filteredRevisions = useMemo(() => {
+    if (!revisions.length) return [];
+    let list = revisions;
+
+    if (!includeMinor) {
+      list = list.filter((revision) => !revision.minor);
+    }
+    if (!includeAnonymous) {
+      list = list.filter((revision) => !isIPAddress(revision.user));
+    }
+    if (!includeBots) {
+      list = list.filter((revision) => !isBotRevision(revision));
+    }
+
+    const startDate = parseDateInput(dateFrom);
+    const endDate = parseDateInput(dateTo, true);
+    if (startDate || endDate) {
+      const startTime = startDate ? startDate.getTime() : Number.NEGATIVE_INFINITY;
+      const endTime = endDate ? endDate.getTime() : Number.POSITIVE_INFINITY;
+      const minTime = Math.min(startTime, endTime);
+      const maxTime = Math.max(startTime, endTime);
+      list = list.filter((revision) => {
+        const revisionTime = new Date(revision.timestamp).getTime();
+        return revisionTime >= minTime && revisionTime <= maxTime;
+      });
+    }
+
+    if (!list.length) return list;
+
+    const total = list.length;
+    let startIndex = editRangeStart ? Math.min(total, Math.max(1, editRangeStart)) : 1;
+    let endIndex = editRangeEnd ? Math.min(total, Math.max(1, editRangeEnd)) : total;
+    if (startIndex > endIndex) {
+      [startIndex, endIndex] = [endIndex, startIndex];
+    }
+
+    if (startIndex !== 1 || endIndex !== total) {
+      list = list.slice(startIndex - 1, endIndex);
+    }
+
+    return list;
+  }, [
+    revisions,
+    includeMinor,
+    includeAnonymous,
+    includeBots,
+    dateFrom,
+    dateTo,
+    editRangeStart,
+    editRangeEnd,
+  ]);
+
+  const currentRevision = filteredRevisions[currentIndex];
+  const prevRevision = filteredRevisions[currentIndex - 1];
 
   const { data: currentContent, isLoading: isCurrentContentLoading } = useSWR(
     currentRevision ? ['revision', currentRevision.revid] : null,
@@ -255,21 +494,48 @@ export default function Home() {
     { revalidateOnFocus: false }
   );
 
-  const currentSettings = useMemo(
+  const shouldFetchExternalLinks = showTemplates;
+  const { data: currentExternalLinks } = useSWR(
+    shouldFetchExternalLinks && currentRevision ? ['externallinks', currentRevision.revid] : null,
+    () => fetchRevisionExternalLinks(currentRevision!.revid),
+    { revalidateOnFocus: false }
+  );
+
+  const { data: prevExternalLinks } = useSWR(
+    shouldFetchExternalLinks && prevRevision ? ['externallinks', prevRevision.revid] : null,
+    () => fetchRevisionExternalLinks(prevRevision!.revid),
+    { revalidateOnFocus: false }
+  );
+
+  const currentSettings = useMemo<ViewModeSettings>(
     () => ({
       showLinks,
-      diffGranularity,
-      showRemoved,
+      showReferences,
+      showTemplates,
+      showImages,
       highlightIntensity,
+      normalizeChanges,
+      viewStyle,
       autoScroll,
       fontSize,
       lineHeight,
     }),
-    [showLinks, diffGranularity, showRemoved, highlightIntensity, autoScroll, fontSize, lineHeight]
+    [
+      showLinks,
+      showReferences,
+      showTemplates,
+      showImages,
+      highlightIntensity,
+      normalizeChanges,
+      viewStyle,
+      autoScroll,
+      fontSize,
+      lineHeight,
+    ]
   );
 
   const activePreset = useMemo(() => {
-    const entries = Object.entries(viewModes) as [ViewMode, ViewerSettings][];
+    const entries = Object.entries(viewModes) as [ViewMode, ViewModeSettings][];
     const match = entries.find(([, preset]) => isSettingsMatch(preset, currentSettings));
     return match?.[0] ?? null;
   }, [currentSettings]);
@@ -297,6 +563,16 @@ export default function Home() {
   }, [fullHistory, revisions.length]);
 
   useEffect(() => {
+    if (filteredRevisions.length === 0) {
+      setCurrentIndex(0);
+      return;
+    }
+    if (currentIndex >= filteredRevisions.length) {
+      setCurrentIndex(filteredRevisions.length - 1);
+    }
+  }, [filteredRevisions.length, currentIndex]);
+
+  useEffect(() => {
     if (!historyError) return;
     setError(historyError instanceof Error ? historyError.message : 'An error occurred');
   }, [historyError]);
@@ -321,7 +597,17 @@ export default function Home() {
     if (!currentContent) return;
     if (prevRevision && !prevContent) return;
 
-    const newDiff = calculateDiff(prevContent ?? '', currentContent, diffGranularity);
+    const prevSource = injectExternalLinks(prevContent ?? '', prevExternalLinks, showTemplates);
+    const currentSource = injectExternalLinks(currentContent, currentExternalLinks, showTemplates);
+    const newDiff = calculateDiff(prevSource, currentSource, {
+      granularity: 'sentence',
+      contentFilters: {
+        showReferences,
+        showTemplates,
+        showImages,
+      },
+      normalizeChanges,
+    });
     startTransition(() => {
       setDiff(newDiff);
     });
@@ -341,7 +627,21 @@ export default function Home() {
     }
 
     finalizeScroll();
-  }, [currentRevision, currentContent, prevRevision, prevContent, diffGranularity, autoScroll, isTransitioning, startTransition]);
+  }, [
+    currentRevision,
+    currentContent,
+    prevRevision,
+    prevContent,
+    prevExternalLinks,
+    showReferences,
+    showTemplates,
+    showImages,
+    currentExternalLinks,
+    normalizeChanges,
+    autoScroll,
+    isTransitioning,
+    startTransition,
+  ]);
 
   const handleSelectArticle = (articleTitle: string) => {
     if (articleTitle.trim() && articleTitle.trim() !== title) {
@@ -418,7 +718,7 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-64 rounded-lg border border-white/[0.08] bg-[#131316] shadow-xl p-3 z-50"
+                  className="absolute right-0 mt-2 w-64 max-h-[75vh] overflow-y-auto pr-1 rounded-lg border border-white/[0.08] bg-[#131316] shadow-xl p-3 z-50"
                 >
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -443,37 +743,41 @@ export default function Home() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Diff</div>
+                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Layout</div>
                       <div className="flex items-center gap-1.5">
-                        {(['word', 'sentence', 'line'] as DiffGranularity[]).map((option) => (
+                        {(['inline', 'split'] as ViewStyle[]).map((option) => (
                           <button
                             key={option}
                             type="button"
-                            onClick={() => setDiffGranularity(option)}
+                            onClick={() => setViewStyle(option)}
                             className={`px-2 py-1 rounded-md text-[11px] font-medium transition ${
-                              diffGranularity === option
+                              viewStyle === option
                                 ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
                                 : 'bg-white/[0.06] text-white/60 border border-white/[0.08] hover:text-white'
                             }`}
-                            aria-pressed={diffGranularity === option}
+                            aria-pressed={viewStyle === option}
                           >
                             {option}
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Diff</div>
                       <label className="flex items-center justify-between gap-3 text-sm text-white/80">
-                        <span>Show removed</span>
+                        <span>Normalize changes</span>
                         <button
                           type="button"
-                          onClick={() => setShowRemoved((value) => !value)}
+                          onClick={() => setNormalizeChanges((value) => !value)}
                           className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
-                            showRemoved ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                            normalizeChanges ? 'bg-blue-500/70' : 'bg-white/[0.15]'
                           }`}
-                          aria-pressed={showRemoved}
+                          aria-pressed={normalizeChanges}
                         >
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                              showRemoved ? 'translate-x-4' : 'translate-x-1'
+                              normalizeChanges ? 'translate-x-4' : 'translate-x-1'
                             }`}
                           />
                         </button>
@@ -498,6 +802,78 @@ export default function Home() {
                     </div>
 
                     <div className="space-y-2">
+                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Content</div>
+                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                        <span>Show links</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowLinks((value) => !value)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                            showLinks ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                          }`}
+                          aria-pressed={showLinks}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              showLinks ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                        <span>Show references</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowReferences((value) => !value)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                            showReferences ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                          }`}
+                          aria-pressed={showReferences}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              showReferences ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                        <span>Show templates + categories</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowTemplates((value) => !value)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                            showTemplates ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                          }`}
+                          aria-pressed={showTemplates}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              showTemplates ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                        <span>Show images</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowImages((value) => !value)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                            showImages ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                          }`}
+                          aria-pressed={showImages}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              showImages ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                    </div>
+
+                    <div className="space-y-2">
                       <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Behavior</div>
                       <label className="flex items-center justify-between gap-3 text-sm text-white/80">
                         <span>Auto-scroll</span>
@@ -516,23 +892,129 @@ export default function Home() {
                           />
                         </button>
                       </label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Playback</div>
+                      <div className="flex items-center gap-1.5">
+                        {[0.5, 1, 1.5, 2].map((speed) => (
+                          <button
+                            key={speed}
+                            type="button"
+                            onClick={() => setPlaybackSpeed(speed)}
+                            className={`px-2 py-1 rounded-md text-[11px] font-medium transition ${
+                              playbackSpeed === speed
+                                ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
+                                : 'bg-white/[0.06] text-white/60 border border-white/[0.08] hover:text-white'
+                            }`}
+                            aria-pressed={playbackSpeed === speed}
+                          >
+                            {speed}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Filters</div>
                       <label className="flex items-center justify-between gap-3 text-sm text-white/80">
-                        <span>Show links</span>
+                        <span>Include minor</span>
                         <button
                           type="button"
-                          onClick={() => setShowLinks((value) => !value)}
+                          onClick={() => setIncludeMinor((value) => !value)}
                           className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
-                            showLinks ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                            includeMinor ? 'bg-blue-500/70' : 'bg-white/[0.15]'
                           }`}
-                          aria-pressed={showLinks}
+                          aria-pressed={includeMinor}
                         >
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                              showLinks ? 'translate-x-4' : 'translate-x-1'
+                              includeMinor ? 'translate-x-4' : 'translate-x-1'
                             }`}
                           />
                         </button>
                       </label>
+                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                        <span>Include bots</span>
+                        <button
+                          type="button"
+                          onClick={() => setIncludeBots((value) => !value)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                            includeBots ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                          }`}
+                          aria-pressed={includeBots}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              includeBots ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                        <span>Include anonymous</span>
+                        <button
+                          type="button"
+                          onClick={() => setIncludeAnonymous((value) => !value)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                            includeAnonymous ? 'bg-blue-500/70' : 'bg-white/[0.15]'
+                          }`}
+                          aria-pressed={includeAnonymous}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              includeAnonymous ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Range</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="space-y-1 text-[10px] text-white/50">
+                          <span>From</span>
+                          <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={(event) => setDateFrom(event.target.value)}
+                            className="w-full rounded-md border border-white/[0.08] bg-white/[0.06] px-2 py-1 text-[11px] text-white/80"
+                          />
+                        </label>
+                        <label className="space-y-1 text-[10px] text-white/50">
+                          <span>To</span>
+                          <input
+                            type="date"
+                            value={dateTo}
+                            onChange={(event) => setDateTo(event.target.value)}
+                            className="w-full rounded-md border border-white/[0.08] bg-white/[0.06] px-2 py-1 text-[11px] text-white/80"
+                          />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="space-y-1 text-[10px] text-white/50">
+                          <span>Edit from</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={editRangeStart ?? ''}
+                            onChange={(event) => setEditRangeStart(parseEditRangeValue(event.target.value))}
+                            className="w-full rounded-md border border-white/[0.08] bg-white/[0.06] px-2 py-1 text-[11px] text-white/80"
+                          />
+                        </label>
+                        <label className="space-y-1 text-[10px] text-white/50">
+                          <span>Edit to</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={editRangeEnd ?? ''}
+                            onChange={(event) => setEditRangeEnd(parseEditRangeValue(event.target.value))}
+                            className="w-full rounded-md border border-white/[0.08] bg-white/[0.06] px-2 py-1 text-[11px] text-white/80"
+                          />
+                        </label>
+                      </div>
+                      <div className="text-[10px] text-white/40">1 = oldest revision</div>
                     </div>
 
                     <div className="space-y-2">
@@ -635,6 +1117,22 @@ export default function Home() {
                   <Loader2 className="text-white/40 mb-3 animate-spin" size={32} />
                   <p className="text-white/30 text-sm">Loading revision history...</p>
                 </motion.div>
+              ) : filteredRevisions.length === 0 ? (
+                <motion.div
+                  key="no-results"
+                  className="flex flex-col items-center justify-center text-center py-24"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mb-4 border border-white/10">
+                    <span className="text-white/50 text-lg font-semibold">∅</span>
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">No revisions match</h3>
+                  <p className="text-white/40 text-sm max-w-xs">
+                    Try loosening the filters or clearing the date/edit ranges.
+                  </p>
+                </motion.div>
               ) : (
                 <motion.div 
                   key="content"
@@ -647,8 +1145,9 @@ export default function Home() {
                     isTransitioning={isTransitioning}
                     onScrollToChange={handleScrollToChange}
                     showLinks={showLinks}
-                    showRemoved={showRemoved}
+                    showImages={showImages}
                     highlightIntensity={highlightIntensity}
+                    viewStyle={viewStyle}
                     autoScroll={autoScroll}
                     fontSize={fontSize}
                     lineHeight={lineHeight}
@@ -679,17 +1178,18 @@ export default function Home() {
           {/* Timeline */}
           <div className="fixed bottom-0 left-0 right-0 lg:right-[340px] z-40">
             <TimelineSlider
-              revisions={revisions}
+              revisions={filteredRevisions}
               currentIndex={currentIndex}
               onChange={handleRevisionChange}
               isLoading={isBusy}
+              playbackSpeed={playbackSpeed}
             />
           </div>
         </div>
 
         {/* Sidebar - Desktop */}
         <div className="hidden lg:block w-[340px] flex-shrink-0 border-l border-white/[0.06] overflow-y-auto">
-          <Sidebar revision={revisions[currentIndex]} totalRevisions={revisions.length} />
+          <Sidebar revision={currentRevision} totalRevisions={filteredRevisions.length} />
         </div>
 
         {/* Sidebar - Mobile Overlay */}
@@ -712,7 +1212,7 @@ export default function Home() {
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className="fixed top-14 right-0 bottom-0 w-[320px] sm:w-[340px] bg-[#09090b] border-l border-white/[0.06] overflow-y-auto z-50 lg:hidden"
               >
-                <Sidebar revision={revisions[currentIndex]} totalRevisions={revisions.length} />
+                <Sidebar revision={currentRevision} totalRevisions={filteredRevisions.length} />
               </motion.div>
             </>
           )}

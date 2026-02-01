@@ -14,10 +14,11 @@ type HighlightClasses = {
 interface MarkdownRendererProps {
   markdown: string;
   showLinks: boolean;
+  showImages: boolean;
   highlightClasses: HighlightClasses;
 }
 
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks, highlightClasses }) => {
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks, showImages, highlightClasses }) => {
   const sanitizeSchema = useMemo(() => {
     const baseTags = defaultSchema.tagNames ?? [];
     return {
@@ -43,6 +44,27 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ markdown, showLinks
             className={highlightClasses.del}
           />
         ),
+        strong: (props) => (
+          <strong
+            {...props}
+            className="text-current font-semibold"
+          />
+        ),
+        em: (props) => (
+          <em
+            {...props}
+            className="text-current"
+          />
+        ),
+        img: (props) =>
+          showImages ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              {...props}
+              alt={props.alt ?? ''}
+              className="max-w-full rounded-md border border-white/10"
+            />
+          ) : null,
         a: (props) =>
           showLinks ? (
             <a
