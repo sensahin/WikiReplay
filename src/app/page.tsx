@@ -1219,23 +1219,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Loading indicator */}
-          <AnimatePresence>
-            {isBusy && diff.length > 0 && (
-              <motion.div 
-                className="fixed top-20 left-1/2 -translate-x-1/2 z-50"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full text-xs font-medium text-white/70 flex items-center gap-2 border border-white/10">
-                  <Loader2 size={12} className="animate-spin" />
-                  Loading...
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* Timeline */}
           <div className="fixed bottom-0 left-0 right-0 lg:right-[340px] z-40">
             <TimelineSlider
@@ -1250,7 +1233,7 @@ export default function Home() {
 
         {/* Sidebar - Desktop */}
         <div className="hidden lg:block w-[340px] flex-shrink-0 border-l border-white/[0.06] overflow-y-auto">
-          <Sidebar revision={currentRevision} totalRevisions={filteredRevisions.length} />
+          <Sidebar revision={currentRevision} totalRevisions={filteredRevisions.length} currentIndex={currentIndex} />
         </div>
 
         {/* Sidebar - Mobile Overlay */}
@@ -1273,7 +1256,7 @@ export default function Home() {
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className="fixed top-14 right-0 bottom-0 w-[320px] sm:w-[340px] bg-[#09090b] border-l border-white/[0.06] overflow-y-auto z-50 lg:hidden"
               >
-                <Sidebar revision={currentRevision} totalRevisions={filteredRevisions.length} />
+                <Sidebar revision={currentRevision} totalRevisions={filteredRevisions.length} currentIndex={currentIndex} />
               </motion.div>
             </>
           )}

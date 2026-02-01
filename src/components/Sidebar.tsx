@@ -56,9 +56,10 @@ function getTagStyle(tag: string): string {
 interface SidebarProps {
     revision?: Revision;
     totalRevisions?: number;
+    currentIndex?: number;
 }
 
-const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }) => {
+const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0, currentIndex = 0 }) => {
     const [geoLocation, setGeoLocation] = useState<GeoLocation | null>(null);
     const [isLoadingGeo, setIsLoadingGeo] = useState(false);
     const isAnonymous = revision ? isIPAddress(revision.user) : false;
@@ -104,13 +105,48 @@ const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0
         </div>
     );
 
+    // Display position is 1-indexed (currentIndex + 1)
+    const displayPosition = currentIndex + 1;
+
     return (
         <div className="w-full h-full flex flex-col gap-4 p-5 bg-[#09090b] overflow-y-auto custom-scrollbar">
-            {/* Total Revisions */}
+            {/* Revisions Section */}
             {totalRevisions > 0 && (
                 <div className="pb-4 border-b border-white/[0.06]">
-                    <div className="text-2xl font-bold text-white">{totalRevisions.toLocaleString()}</div>
-                    <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider mt-1">Total Revisions</div>
+                    <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider mb-2">Revision</div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold text-white">{displayPosition.toLocaleString()}</span>
+                        <span className="text-lg text-white/40">/</span>
+                        <span className="text-lg text-white/50">{totalRevisions.toLocaleString()}</span>
+                    </div>
+                    <div className="mt-3 space-y-1.5 text-xs">
+                        <div className="flex justify-between">
+                            <span className="text-white/30">Revision ID</span>
+                            <a 
+                                href={`https://en.wikipedia.org/w/index.php?oldid=${revision.revid}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-white/60 font-mono hover:text-blue-400 transition-colors"
+                            >
+                                {revision.revid}
+                            </a>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-white/30">Parent ID</span>
+                            {revision.parentid ? (
+                                <a 
+                                    href={`https://en.wikipedia.org/w/index.php?oldid=${revision.parentid}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-white/60 font-mono hover:text-blue-400 transition-colors"
+                                >
+                                    {revision.parentid}
+                                </a>
+                            ) : (
+                                <span className="text-white/30 font-mono">—</span>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -213,39 +249,6 @@ const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0
                                     {formatTagName(tag)}
                                 </span>
                             ))}
-                        </div>
-                    </div>
-
-                    {/* Technical */}
-                    <div className="space-y-2 pt-4 border-t border-white/[0.06]">
-                        <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Technical</div>
-                        <div className="space-y-2 text-xs">
-                            <div className="flex justify-between">
-                                <span className="text-white/30">Revision ID</span>
-                                <a 
-                                    href={`https://en.wikipedia.org/w/index.php?oldid=${revision.revid}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-white/60 font-mono hover:text-blue-400 transition-colors"
-                                >
-                                    {revision.revid}
-                                </a>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-white/30">Parent ID</span>
-                                {revision.parentid ? (
-                                    <a 
-                                        href={`https://en.wikipedia.org/w/index.php?oldid=${revision.parentid}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-white/60 font-mono hover:text-blue-400 transition-colors"
-                                    >
-                                        {revision.parentid}
-                                    </a>
-                                ) : (
-                                    <span className="text-white/30 font-mono">—</span>
-                                )}
-                            </div>
                         </div>
                     </div>
 
