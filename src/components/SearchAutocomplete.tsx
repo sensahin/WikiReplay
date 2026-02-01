@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, FileText, Shuffle } from 'lucide-react';
 import { fetchSearchSuggestions, SearchSuggestion } from '@/lib/wikiApi';
+import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 
 interface SearchAutocompleteProps {
     value: string;
@@ -76,17 +77,7 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
         };
     }, [value, fetchSuggestions]);
 
-    // Handle click outside to close
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    useOnClickOutside(containerRef, () => setIsOpen(false));
 
     // Handle keyboard navigation
     const handleKeyDown = (e: React.KeyboardEvent) => {

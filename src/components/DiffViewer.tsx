@@ -1,13 +1,13 @@
 
 'use client';
 
-import React, { useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { ExtendedChange } from '@/lib/diffUtils';
+
+const MarkdownRenderer = React.lazy(() =>
+    import('./MarkdownRenderer').then((module) => ({ default: module.default }))
+);
 
 interface DiffViewerProps {
     diff: ExtendedChange[];
@@ -21,7 +21,7 @@ interface DiffViewerProps {
     lineHeight?: number;
 }
 
-export const DiffViewer: React.FC<DiffViewerProps> = ({
+const DiffViewerComponent: React.FC<DiffViewerProps> = ({
     diff,
     isTransitioning = false,
     onScrollToChange,
@@ -33,14 +33,6 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
     lineHeight = 1.8,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const sanitizeSchema = useMemo(() => {
-        const baseTags = defaultSchema.tagNames ?? [];
-        return {
-            ...defaultSchema,
-            tagNames: [...baseTags, 'ins', 'del'],
-        };
-    }, []);
-
     const wrapInline = useCallback((value: string, tag: 'ins' | 'del') => {
         const leading = value.match(/^\s*/)?.[0] ?? '';
         const trailing = value.match(/\s*$/)?.[0] ?? '';
@@ -101,6 +93,11 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             .join('');
     }, [diff, showRemoved, wrapChange]);
 
+    const fallbackText = useMemo(
+        () => diffMarkdown.replace(/<\/?(ins|del)>/g, ''),
+        [diffMarkdown]
+    );
+
     const scrollToFirstChange = useCallback(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
@@ -145,45 +142,23 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                 <motion.article 
                     key={diffMarkdown.slice(0, 200)}
                     className="prose prose-invert max-w-none text-white/80 font-[system-ui]"
-                    style={{ fontSize, lineHeight }}
+                    style={{ fontSize, lineHeight, contentVisibility: 'auto', containIntrinsicSize: '1000px' }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25 }}
                 >
-                    <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-                        components={{
-                            ins: (props) => (
-                                <ins
-                                    {...props}
-                                    className={highlightClasses.ins}
-                                />
-                            ),
-                            del: (props) => (
-                                <del
-                                    {...props}
-                                    className={highlightClasses.del}
-                                />
-                            ),
-                            a: (props) =>
-                                showLinks ? (
-                                    <a
-                                        {...props}
-                                        className="text-blue-300 hover:text-blue-200 underline underline-offset-2"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    />
-                                ) : (
-                                    <span>{props.children}</span>
-                                ),
-                        }}
-                    >
-                        {diffMarkdown}
-                    </ReactMarkdown>
+                    <Suspense fallback={<div className="whitespace-pre-wrap text-white/70">{fallbackText}</div>}>
+                        <MarkdownRenderer
+                            markdown={diffMarkdown}
+                            showLinks={showLinks}
+                            highlightClasses={highlightClasses}
+                        />
+                    </Suspense>
                 </motion.article>
             </AnimatePresence>
         </motion.div>
     );
 };
+
+export const DiffViewer = React.memo(DiffViewerComponent);

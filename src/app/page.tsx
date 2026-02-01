@@ -1,7 +1,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useTransition } from 'react';
+import useSWR from 'swr';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, Revision } from '@/lib/wikiApi';
@@ -10,6 +11,8 @@ import { TimelineSlider } from '@/components/TimelineSlider';
 import { DiffViewer } from '@/components/DiffViewer';
 import { Sidebar } from '@/components/Sidebar';
 import { SearchAutocomplete } from '@/components/SearchAutocomplete';
+import { useOnClickOutside } from '@/hooks/useOnClickOutside';
+import { preloadMarkdownRenderer } from '@/components/MarkdownRenderer';
 import { Loader2, History, Github, Menu, X, Settings } from 'lucide-react';
 
 type HighlightIntensity = 'subtle' | 'vivid' | 'flat';
@@ -25,23 +28,35 @@ type ViewerSettings = {
   lineHeight: number;
 };
 
+type StoredViewerSettings = {
+  version: number;
+  data: Partial<ViewerSettings>;
+};
+
 const defaultViewerSettings: ViewerSettings = {
   showLinks: false,
-  diffGranularity: 'word',
+  diffGranularity: 'sentence',
   showRemoved: true,
-  highlightIntensity: 'subtle',
+  highlightIntensity: 'flat',
   autoScroll: true,
-  fontSize: 15,
-  lineHeight: 1.8,
+  fontSize: 16,
+  lineHeight: 1.9,
 };
+
+const viewerSettingsSchemaVersion = 1;
+const viewerSettingsStorageKey = 'wikireplay:viewerSettings';
+const viewerSettingsMigratedKey = 'wikireplay:viewerSettings:migrated';
+
+let cachedViewerSettings: StoredViewerSettings | null | undefined;
+let cachedMigratedVersion: number | null | undefined;
 
 const viewModes: Record<ViewMode, ViewerSettings> = {
   clean: {
     showLinks: false,
     diffGranularity: 'sentence',
-    showRemoved: false,
+    showRemoved: true,
     highlightIntensity: 'flat',
-    autoScroll: false,
+    autoScroll: true,
     fontSize: 16,
     lineHeight: 1.9,
   },
@@ -72,13 +87,44 @@ const isSettingsMatch = (a: ViewerSettings, b: ViewerSettings) =>
   a.fontSize === b.fontSize &&
   a.lineHeight === b.lineHeight;
 
+const readMigratedVersion = () => {
+  if (cachedMigratedVersion !== undefined) return cachedMigratedVersion;
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(viewerSettingsMigratedKey);
+  const parsed = raw ? Number(raw) : null;
+  cachedMigratedVersion = Number.isFinite(parsed) ? parsed : null;
+  return cachedMigratedVersion;
+};
+
+const readStoredViewerSettings = () => {
+  if (cachedViewerSettings !== undefined) return cachedViewerSettings;
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(viewerSettingsStorageKey);
+  if (!raw) {
+    cachedViewerSettings = null;
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as StoredViewerSettings;
+    cachedViewerSettings = parsed;
+    return parsed;
+  } catch {
+    cachedViewerSettings = null;
+    return null;
+  }
+};
+
+const updateStoredViewerSettingsCache = (settings: StoredViewerSettings) => {
+  cachedViewerSettings = settings;
+  cachedMigratedVersion = settings.version;
+};
+
 export default function Home() {
   const [title, setTitle] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [diff, setDiff] = useState<ExtendedChange[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -90,13 +136,9 @@ export default function Home() {
   const [autoScroll, setAutoScroll] = useState(defaultViewerSettings.autoScroll);
   const [fontSize, setFontSize] = useState(defaultViewerSettings.fontSize);
   const [lineHeight, setLineHeight] = useState(defaultViewerSettings.lineHeight);
+  const [isTitleLoading, setIsTitleLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const settingsRef = useRef<HTMLDivElement>(null);
-  const pendingGranularityRef = useRef(false);
-  const isLoadingRef = useRef(isLoading);
-  const currentIndexRef = useRef(currentIndex);
-  const diffGranularityRef = useRef(diffGranularity);
-  const loadIdRef = useRef(0);
-  const lastAppliedGranularityRef = useRef<DiffGranularity>(diffGranularity);
   const scrollToChangeRef = useRef<(() => void) | null>(null);
 
   // Load a random article on initial mount
@@ -126,37 +168,39 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const storedValue = localStorage.getItem('wikireplay:viewerSettings');
-    if (storedValue) {
-      try {
-        const parsed = JSON.parse(storedValue) as Partial<{
-          showLinks: boolean;
-          diffGranularity: DiffGranularity;
-          showRemoved: boolean;
-          highlightIntensity: HighlightIntensity;
-          autoScroll: boolean;
-          fontSize: number;
-          lineHeight: number;
-        }>;
-        applyViewerSettings({
-          showLinks: typeof parsed.showLinks === 'boolean' ? parsed.showLinks : undefined,
-          diffGranularity:
-            parsed.diffGranularity === 'word' || parsed.diffGranularity === 'sentence' || parsed.diffGranularity === 'line'
-              ? parsed.diffGranularity
-              : undefined,
-          showRemoved: typeof parsed.showRemoved === 'boolean' ? parsed.showRemoved : undefined,
-          highlightIntensity:
-            parsed.highlightIntensity === 'subtle' || parsed.highlightIntensity === 'vivid' || parsed.highlightIntensity === 'flat'
-              ? parsed.highlightIntensity
-              : undefined,
-          autoScroll: typeof parsed.autoScroll === 'boolean' ? parsed.autoScroll : undefined,
-          fontSize: parsed.fontSize,
-          lineHeight: parsed.lineHeight,
-        });
-        return;
-      } catch {
-        // fall through to legacy key
+    const storedSettings = readStoredViewerSettings();
+    const migratedVersion = readMigratedVersion();
+    if (storedSettings) {
+      const settingsData =
+        typeof storedSettings.version === 'number' &&
+        storedSettings.version >= viewerSettingsSchemaVersion &&
+        storedSettings.data
+          ? storedSettings.data
+          : (storedSettings as Partial<ViewerSettings>);
+      applyViewerSettings({
+        showLinks: typeof settingsData.showLinks === 'boolean' ? settingsData.showLinks : undefined,
+        diffGranularity:
+          settingsData.diffGranularity === 'word' ||
+          settingsData.diffGranularity === 'sentence' ||
+          settingsData.diffGranularity === 'line'
+            ? settingsData.diffGranularity
+            : undefined,
+        showRemoved: typeof settingsData.showRemoved === 'boolean' ? settingsData.showRemoved : undefined,
+        highlightIntensity:
+          settingsData.highlightIntensity === 'subtle' ||
+          settingsData.highlightIntensity === 'vivid' ||
+          settingsData.highlightIntensity === 'flat'
+            ? settingsData.highlightIntensity
+            : undefined,
+        autoScroll: typeof settingsData.autoScroll === 'boolean' ? settingsData.autoScroll : undefined,
+        fontSize: settingsData.fontSize,
+        lineHeight: settingsData.lineHeight,
+      });
+      if (migratedVersion !== viewerSettingsSchemaVersion) {
+        localStorage.setItem(viewerSettingsMigratedKey, String(viewerSettingsSchemaVersion));
+        cachedMigratedVersion = viewerSettingsSchemaVersion;
       }
+      return;
     }
 
     const legacyShowLinks = localStorage.getItem('wikireplay:showLinks');
@@ -166,29 +210,50 @@ export default function Home() {
   }, [applyViewerSettings]);
 
   useEffect(() => {
-    const payload = {
-      showLinks,
-      diffGranularity,
-      showRemoved,
-      highlightIntensity,
-      autoScroll,
-      fontSize,
-      lineHeight,
+    const payload: StoredViewerSettings = {
+      version: viewerSettingsSchemaVersion,
+      data: {
+        showLinks,
+        diffGranularity,
+        showRemoved,
+        highlightIntensity,
+        autoScroll,
+        fontSize,
+        lineHeight,
+      },
     };
-    localStorage.setItem('wikireplay:viewerSettings', JSON.stringify(payload));
+    localStorage.setItem(viewerSettingsStorageKey, JSON.stringify(payload));
+    localStorage.setItem(viewerSettingsMigratedKey, String(viewerSettingsSchemaVersion));
+    updateStoredViewerSettingsCache(payload);
   }, [showLinks, diffGranularity, showRemoved, highlightIntensity, autoScroll, fontSize, lineHeight]);
 
-  useEffect(() => {
-    isLoadingRef.current = isLoading;
-  }, [isLoading]);
+  const historyKey = title ? ['history', title, 500] : null;
+  const { data: initialHistory, isLoading: isHistoryLoading, error: historyError } = useSWR(
+    historyKey,
+    () => fetchRevisionHistory(title ?? '', 500, false),
+    { revalidateOnFocus: false }
+  );
 
-  useEffect(() => {
-    currentIndexRef.current = currentIndex;
-  }, [currentIndex]);
+  const { data: fullHistory } = useSWR(
+    initialHistory ? ['history-full', title] : null,
+    () => fetchRevisionHistory(title ?? '', 50000, true),
+    { revalidateOnFocus: false }
+  );
 
-  useEffect(() => {
-    diffGranularityRef.current = diffGranularity;
-  }, [diffGranularity]);
+  const currentRevision = revisions[currentIndex];
+  const prevRevision = revisions[currentIndex - 1];
+
+  const { data: currentContent, isLoading: isCurrentContentLoading } = useSWR(
+    currentRevision ? ['revision', currentRevision.revid] : null,
+    () => fetchRevisionContent(currentRevision!.revid),
+    { revalidateOnFocus: false }
+  );
+
+  const { data: prevContent, isLoading: isPrevContentLoading } = useSWR(
+    prevRevision ? ['revision', prevRevision.revid] : null,
+    () => fetchRevisionContent(prevRevision!.revid),
+    { revalidateOnFocus: false }
+  );
 
   const currentSettings = useMemo(
     () => ({
@@ -209,148 +274,74 @@ export default function Home() {
     return match?.[0] ?? null;
   }, [currentSettings]);
 
-  useEffect(() => {
-    if (!settingsOpen) return;
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
-        setSettingsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [settingsOpen]);
+  useOnClickOutside(settingsRef, () => setSettingsOpen(false), settingsOpen);
 
   useEffect(() => {
-    if (!title) return;
-    const requestId = ++loadIdRef.current;
-    let active = true;
-    const loadArticle = async () => {
-      setIsLoading(true);
-      setError(null);
-      setDiff([]);
-      setRevisions([]);
-      setCurrentIndex(0);
-      try {
-        const history = await fetchRevisionHistory(title, 500, false);
-        if (loadIdRef.current !== requestId || !active) return;
-
-        const reversedHistory = [...history].reverse();
-        setRevisions(reversedHistory);
-        setCurrentIndex(0);
-
-        if (reversedHistory.length > 0) {
-          const firstRev = reversedHistory[0];
-          const firstContent = await fetchRevisionContent(firstRev.revid);
-          if (loadIdRef.current !== requestId || !active) return;
-          const newDiff = calculateDiff('', firstContent, diffGranularityRef.current);
-          setDiff(newDiff);
-        }
-
-        void (async () => {
-          try {
-            const fullHistory = await fetchRevisionHistory(title, 50000, true);
-            if (loadIdRef.current !== requestId || !active) return;
-            if (fullHistory.length > history.length) {
-              setRevisions([...fullHistory].reverse());
-            }
-          } catch {
-            // background fetch failures should not block initial render
-          }
-        })();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        if (loadIdRef.current === requestId && active) {
-          setIsLoading(false);
-        }
-      }
-    };
-    loadArticle();
-    return () => {
-      active = false;
-    };
+    setError(null);
+    setDiff([]);
+    setRevisions([]);
+    setCurrentIndex(0);
+    setIsTransitioning(false);
   }, [title]);
 
-  const handleRevisionChange = useCallback(async (index: number, options?: { force?: boolean; transition?: boolean }) => {
-    const { force = false, transition = true } = options ?? {};
-    if ((index === currentIndex && !force) || isLoading) return;
+  useEffect(() => {
+    if (!initialHistory) return;
+    const reversed = [...initialHistory].reverse();
+    setRevisions(reversed);
+    setCurrentIndex(0);
+  }, [initialHistory, title]);
 
-    if (transition) {
-      setIsTransitioning(true);
-    }
-    setIsLoading(true);
+  useEffect(() => {
+    if (!fullHistory || fullHistory.length <= revisions.length) return;
+    setRevisions([...fullHistory].reverse());
+  }, [fullHistory, revisions.length]);
 
-    if (transition) {
-      await new Promise(resolve => setTimeout(resolve, 150));
-    }
+  useEffect(() => {
+    if (!historyError) return;
+    setError(historyError instanceof Error ? historyError.message : 'An error occurred');
+  }, [historyError]);
 
-    try {
-      const currentRev = revisions[index];
-      const prevRev = revisions[index - 1];
+  const isBusy = isPending || isTitleLoading || isHistoryLoading || isCurrentContentLoading || (prevRevision ? isPrevContentLoading : false);
 
-      if (!currentRev) {
-        setDiff([]);
-        if (transition) {
-          setIsTransitioning(false);
-        }
-        return;
-      }
-
-      const currentContent = await fetchRevisionContent(currentRev.revid);
-      const prevContent = prevRev ? await fetchRevisionContent(prevRev.revid) : '';
-
-      const newDiff = calculateDiff(prevContent, currentContent, diffGranularity);
-      setDiff(newDiff);
-      setCurrentIndex(index);
-
-      if (transition) {
-        setTimeout(() => {
-          setIsTransitioning(false);
-          setTimeout(() => {
-            if (autoScroll && scrollToChangeRef.current) {
-              scrollToChangeRef.current();
-            }
-          }, 200);
-        }, 50);
-      } else if (autoScroll && scrollToChangeRef.current) {
-        scrollToChangeRef.current();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setIsTransitioning(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [autoScroll, currentIndex, diffGranularity, isLoading, revisions]);
+  const handleRevisionChange = useCallback((index: number) => {
+    if (index === currentIndex || isBusy) return;
+    setIsTransitioning(true);
+    startTransition(() => setCurrentIndex(index));
+  }, [currentIndex, isBusy, startTransition]);
 
   const handleScrollToChange = useCallback((scrollFn: () => void) => {
     scrollToChangeRef.current = scrollFn;
   }, []);
 
   useEffect(() => {
-    if (diffGranularity === lastAppliedGranularityRef.current && !pendingGranularityRef.current) {
+    if (!currentRevision) {
+      setDiff([]);
       return;
+    }
+    if (!currentContent) return;
+    if (prevRevision && !prevContent) return;
+
+    const newDiff = calculateDiff(prevContent ?? '', currentContent, diffGranularity);
+    startTransition(() => {
+      setDiff(newDiff);
+    });
+
+    const finalizeScroll = () => {
+      if (autoScroll && scrollToChangeRef.current) {
+        scrollToChangeRef.current();
+      }
+    };
+
+    if (isTransitioning) {
+      const timer = setTimeout(() => {
+        setIsTransitioning(false);
+        setTimeout(finalizeScroll, 200);
+      }, 50);
+      return () => clearTimeout(timer);
     }
 
-    if (revisions.length === 0) {
-      pendingGranularityRef.current = true;
-      return;
-    }
-    if (isLoadingRef.current) {
-      pendingGranularityRef.current = true;
-      return;
-    }
-    pendingGranularityRef.current = false;
-    lastAppliedGranularityRef.current = diffGranularity;
-    handleRevisionChange(currentIndexRef.current, { force: true, transition: false });
-  }, [diffGranularity, handleRevisionChange, revisions.length]);
-
-  useEffect(() => {
-    if (!pendingGranularityRef.current || isLoading || revisions.length === 0) return;
-    pendingGranularityRef.current = false;
-    lastAppliedGranularityRef.current = diffGranularity;
-    handleRevisionChange(currentIndexRef.current, { force: true, transition: false });
-  }, [isLoading, revisions.length, handleRevisionChange, diffGranularity]);
+    finalizeScroll();
+  }, [currentRevision, currentContent, prevRevision, prevContent, diffGranularity, autoScroll, isTransitioning, startTransition]);
 
   const handleSelectArticle = (articleTitle: string) => {
     if (articleTitle.trim() && articleTitle.trim() !== title) {
@@ -360,14 +351,14 @@ export default function Home() {
 
   const handleRandomArticle = async () => {
     try {
-      setIsLoading(true);
+      setIsTitleLoading(true);
       const randomTitle = await fetchRandomArticle();
       setSearchInput(randomTitle);
       setTitle(randomTitle);
     } catch {
       setError('Failed to fetch random article');
     } finally {
-      setIsLoading(false);
+      setIsTitleLoading(false);
     }
   };
 
@@ -413,6 +404,8 @@ export default function Home() {
           <div ref={settingsRef} className="relative">
             <button
               onClick={() => setSettingsOpen((open) => !open)}
+              onMouseEnter={preloadMarkdownRenderer}
+              onFocus={preloadMarkdownRenderer}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
               title="Settings"
             >
@@ -631,7 +624,7 @@ export default function Home() {
                     We couldn&apos;t find this Wikipedia article. Check the spelling and try again.
                   </p>
                 </motion.div>
-              ) : isLoading && diff.length === 0 ? (
+              ) : isBusy && diff.length === 0 ? (
                 <motion.div 
                   key="loading"
                   className="flex flex-col items-center justify-center py-24"
@@ -668,7 +661,7 @@ export default function Home() {
 
           {/* Loading indicator */}
           <AnimatePresence>
-            {isLoading && diff.length > 0 && (
+            {isBusy && diff.length > 0 && (
               <motion.div 
                 className="fixed top-20 left-1/2 -translate-x-1/2 z-50"
                 initial={{ opacity: 0, y: -10 }}
@@ -689,7 +682,7 @@ export default function Home() {
               revisions={revisions}
               currentIndex={currentIndex}
               onChange={handleRevisionChange}
-              isLoading={isLoading}
+              isLoading={isBusy}
             />
           </div>
         </div>

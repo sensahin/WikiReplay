@@ -58,10 +58,10 @@ interface SidebarProps {
     totalRevisions?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }) => {
+const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }) => {
     const [geoLocation, setGeoLocation] = useState<GeoLocation | null>(null);
     const [isLoadingGeo, setIsLoadingGeo] = useState(false);
-    const [isAnonymous, setIsAnonymous] = useState(false);
+    const isAnonymous = revision ? isIPAddress(revision.user) : false;
 
     // Fetch geolocation when revision changes
     useEffect(() => {
@@ -71,16 +71,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
             if (!revision) {
                 if (!isActive) return;
                 setGeoLocation(null);
-                setIsAnonymous(false);
                 setIsLoadingGeo(false);
                 return;
             }
 
-            const anonymous = isIPAddress(revision.user);
-            if (!isActive) return;
-            setIsAnonymous(anonymous);
-
-            if (!anonymous) {
+            if (!isAnonymous) {
                 setGeoLocation(null);
                 setIsLoadingGeo(false);
                 return;
@@ -97,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
         return () => {
             isActive = false;
         };
-    }, [revision]);
+    }, [revision, isAnonymous]);
 
     if (!revision) return (
         <div className="w-full h-full flex flex-col gap-4 p-5 bg-[#09090b]">
@@ -273,3 +268,5 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
         </div>
     );
 };
+
+export const Sidebar = React.memo(SidebarComponent);
