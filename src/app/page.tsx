@@ -25,7 +25,6 @@ type ViewerSettings = {
   showTemplates: boolean;
   showImages: boolean;
   highlightIntensity: HighlightIntensity;
-  normalizeChanges: boolean;
   viewStyle: ViewStyle;
   autoScroll: boolean;
   fontSize: number;
@@ -47,7 +46,6 @@ type ViewModeSettings = Pick<
   | 'showTemplates'
   | 'showImages'
   | 'highlightIntensity'
-  | 'normalizeChanges'
   | 'viewStyle'
   | 'autoScroll'
   | 'fontSize'
@@ -65,7 +63,6 @@ const defaultViewerSettings: ViewerSettings = {
   showTemplates: false,
   showImages: false,
   highlightIntensity: 'subtle',
-  normalizeChanges: false,
   viewStyle: 'inline',
   autoScroll: true,
   fontSize: 16,
@@ -94,7 +91,6 @@ const viewModes: Record<ViewMode, ViewModeSettings> = {
     showTemplates: false,
     showImages: false,
     highlightIntensity: 'flat',
-    normalizeChanges: true,
     viewStyle: 'inline',
     autoScroll: true,
     fontSize: 16,
@@ -107,7 +103,6 @@ const viewModes: Record<ViewMode, ViewModeSettings> = {
     showTemplates: true,
     showImages: true,
     highlightIntensity: 'vivid',
-    normalizeChanges: false,
     viewStyle: 'split',
     autoScroll: true,
     fontSize: 15,
@@ -173,7 +168,6 @@ const isSettingsMatch = (a: ViewModeSettings, b: ViewModeSettings) =>
   a.showTemplates === b.showTemplates &&
   a.showImages === b.showImages &&
   a.highlightIntensity === b.highlightIntensity &&
-  a.normalizeChanges === b.normalizeChanges &&
   a.viewStyle === b.viewStyle &&
   a.autoScroll === b.autoScroll &&
   a.fontSize === b.fontSize &&
@@ -226,7 +220,6 @@ export default function Home() {
   const [showTemplates, setShowTemplates] = useState(defaultViewerSettings.showTemplates);
   const [showImages, setShowImages] = useState(defaultViewerSettings.showImages);
   const [highlightIntensity, setHighlightIntensity] = useState<HighlightIntensity>(defaultViewerSettings.highlightIntensity);
-  const [normalizeChanges, setNormalizeChanges] = useState(defaultViewerSettings.normalizeChanges);
   const [viewStyle, setViewStyle] = useState<ViewStyle>(defaultViewerSettings.viewStyle);
   const [autoScroll, setAutoScroll] = useState(defaultViewerSettings.autoScroll);
   const [fontSize, setFontSize] = useState(defaultViewerSettings.fontSize);
@@ -274,7 +267,6 @@ export default function Home() {
       setShowTemplates((prev) => settings.showTemplates ?? getFallback(prev, defaultViewerSettings.showTemplates));
       setShowImages((prev) => settings.showImages ?? getFallback(prev, defaultViewerSettings.showImages));
       setHighlightIntensity((prev) => settings.highlightIntensity ?? getFallback(prev, defaultViewerSettings.highlightIntensity));
-      setNormalizeChanges((prev) => settings.normalizeChanges ?? getFallback(prev, defaultViewerSettings.normalizeChanges));
       setViewStyle((prev) => {
         const fallback = getFallback(prev, defaultViewerSettings.viewStyle);
         return settings.viewStyle === 'inline' || settings.viewStyle === 'split'
@@ -334,8 +326,6 @@ export default function Home() {
           settingsData.highlightIntensity === 'flat'
             ? settingsData.highlightIntensity
             : undefined,
-        normalizeChanges:
-          typeof settingsData.normalizeChanges === 'boolean' ? settingsData.normalizeChanges : undefined,
         viewStyle:
           settingsData.viewStyle === 'inline' || settingsData.viewStyle === 'split'
             ? settingsData.viewStyle
@@ -375,7 +365,6 @@ export default function Home() {
         showTemplates,
         showImages,
         highlightIntensity,
-        normalizeChanges,
         viewStyle,
         autoScroll,
         fontSize,
@@ -399,7 +388,6 @@ export default function Home() {
     showTemplates,
     showImages,
     highlightIntensity,
-    normalizeChanges,
     viewStyle,
     autoScroll,
     fontSize,
@@ -414,15 +402,9 @@ export default function Home() {
     editRangeEnd,
   ]);
 
-  const historyKey = title ? ['history', title, 500] : null;
-  const { data: initialHistory, isLoading: isHistoryLoading, error: historyError } = useSWR(
+  const historyKey = title ? ['history-full', title] : null;
+  const { data: fullHistory, isLoading: isHistoryLoading, error: historyError } = useSWR(
     historyKey,
-    () => fetchRevisionHistory(title ?? '', 500, false),
-    { revalidateOnFocus: false }
-  );
-
-  const { data: fullHistory } = useSWR(
-    initialHistory ? ['history-full', title] : null,
     () => fetchRevisionHistory(title ?? '', 50000, true),
     { revalidateOnFocus: false }
   );
@@ -514,7 +496,6 @@ export default function Home() {
       showTemplates,
       showImages,
       highlightIntensity,
-      normalizeChanges,
       viewStyle,
       autoScroll,
       fontSize,
@@ -526,7 +507,6 @@ export default function Home() {
       showTemplates,
       showImages,
       highlightIntensity,
-      normalizeChanges,
       viewStyle,
       autoScroll,
       fontSize,
@@ -551,16 +531,10 @@ export default function Home() {
   }, [title]);
 
   useEffect(() => {
-    if (!initialHistory) return;
-    const reversed = [...initialHistory].reverse();
-    setRevisions(reversed);
-    setCurrentIndex(0);
-  }, [initialHistory, title]);
-
-  useEffect(() => {
-    if (!fullHistory || fullHistory.length <= revisions.length) return;
+    if (!fullHistory) return;
     setRevisions([...fullHistory].reverse());
-  }, [fullHistory, revisions.length]);
+    setCurrentIndex(0);
+  }, [fullHistory, title]);
 
   useEffect(() => {
     if (filteredRevisions.length === 0) {
@@ -606,7 +580,6 @@ export default function Home() {
         showTemplates,
         showImages,
       },
-      normalizeChanges,
     });
     startTransition(() => {
       setDiff(newDiff);
@@ -637,7 +610,6 @@ export default function Home() {
     showTemplates,
     showImages,
     currentExternalLinks,
-    normalizeChanges,
     autoScroll,
     isTransitioning,
     startTransition,
@@ -765,23 +737,6 @@ export default function Home() {
 
                     <div className="space-y-2">
                       <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Diff</div>
-                      <label className="flex items-center justify-between gap-3 text-sm text-white/80">
-                        <span>Normalize changes</span>
-                        <button
-                          type="button"
-                          onClick={() => setNormalizeChanges((value) => !value)}
-                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
-                            normalizeChanges ? 'bg-blue-500/70' : 'bg-white/[0.15]'
-                          }`}
-                          aria-pressed={normalizeChanges}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                              normalizeChanges ? 'translate-x-4' : 'translate-x-1'
-                            }`}
-                          />
-                        </button>
-                      </label>
                       <div className="flex items-center gap-1.5">
                         {(['subtle', 'vivid', 'flat'] as HighlightIntensity[]).map((option) => (
                           <button

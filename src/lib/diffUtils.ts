@@ -18,7 +18,6 @@ export type ContentFilters = {
 export type DiffOptions = {
     granularity?: DiffGranularity;
     contentFilters?: Partial<ContentFilters>;
-    normalizeChanges?: boolean;
 };
 
 wtf.extend(wtfMarkdown);
@@ -138,51 +137,6 @@ function normalizeMarkdownSpacing(markdown: string): string {
     return markdown.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
 }
 
-function normalizeDiffValue(value: string): string {
-    return value.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
-}
-
-function normalizeDiffChanges(diff: ExtendedChange[]): ExtendedChange[] {
-    const result: ExtendedChange[] = [];
-
-    for (let i = 0; i < diff.length; i += 1) {
-        const current = diff[i];
-        if ((current.added || current.removed) && i < diff.length - 1) {
-            const next = diff[i + 1];
-            if ((current.added && next.removed) || (current.removed && next.added)) {
-                const normalizedCurrent = normalizeDiffValue(current.value);
-                const normalizedNext = normalizeDiffValue(next.value);
-                if (normalizedCurrent === normalizedNext) {
-                    const preferred = current.added ? current.value : next.value;
-                    if (preferred) {
-                        const last = result[result.length - 1];
-                        if (last && !last.added && !last.removed) {
-                            last.value += preferred;
-                        } else {
-                            result.push({ value: preferred, added: false, removed: false, count: preferred.length });
-                        }
-                    }
-                    i += 1;
-                    continue;
-                }
-            }
-        }
-
-        if ((current.added || current.removed) && normalizeDiffValue(current.value) === '') {
-            continue;
-        }
-
-        const last = result[result.length - 1];
-        if (last && last.added === current.added && last.removed === current.removed) {
-            last.value += current.value;
-        } else {
-            result.push({ ...current });
-        }
-    }
-
-    return result;
-}
-
 function refineSentenceDiff(diff: ExtendedChange[]): ExtendedChange[] {
     const refined: ExtendedChange[] = [];
 
@@ -191,12 +145,22 @@ function refineSentenceDiff(diff: ExtendedChange[]): ExtendedChange[] {
         const next = diff[i + 1];
 
         if (current.removed && next?.added) {
+            if (current.value === next.value) {
+                refined.push({ value: current.value, added: false, removed: false, count: current.value.length });
+                i += 1;
+                continue;
+            }
             refined.push(...diffWords(current.value, next.value));
             i += 1;
             continue;
         }
 
         if (current.added && next?.removed) {
+            if (current.value === next.value) {
+                refined.push({ value: current.value, added: false, removed: false, count: current.value.length });
+                i += 1;
+                continue;
+            }
             refined.push(...diffWords(next.value, current.value));
             i += 1;
             continue;
@@ -261,10 +225,6 @@ export function calculateDiff(
             break;
         default:
             diff = diffWords(cleanOld, cleanNew);
-    }
-
-    if (resolvedOptions.normalizeChanges) {
-        diff = normalizeDiffChanges(diff);
     }
 
     return diff;
