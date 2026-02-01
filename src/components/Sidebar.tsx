@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Revision, isIPAddress, fetchIPGeolocation, GeoLocation } from '@/lib/wikiApi';
 import { format } from 'date-fns';
-import { User, Calendar, MessageSquare, Info, Hash, GitBranch, MapPin, Globe, Loader2 } from 'lucide-react';
+import { User, Calendar, MessageSquare, Info, Hash, GitBranch, MapPin, Globe, Loader2, ExternalLink } from 'lucide-react';
 
 // Convert country code to flag emoji
 function getCountryFlag(countryCode: string): string {
@@ -52,7 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
     }, [revision?.revid, revision?.user]);
 
     if (!revision) return (
-        <div className="w-full h-full flex flex-col gap-6 p-6 bg-gradient-to-b from-white/5 to-black/20 border-l border-white/10">
+        <div className="w-full h-full flex flex-col gap-6 pt-8 px-6 pb-6 bg-gradient-to-b from-[#0a0a0a] to-black/20 border-l border-white/10">
             <div className="animate-pulse flex flex-col gap-4">
                 {[1, 2, 3].map(i => (
                     <div key={i} className="h-24 bg-white/5 rounded-2xl" />
@@ -62,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
     );
 
     return (
-        <div className="w-full h-full flex flex-col gap-6 p-6 bg-gradient-to-b from-white/5 to-black/20 border-l border-white/10 overflow-y-auto custom-scrollbar">
+        <div className="w-full h-full flex flex-col gap-5 pt-8 px-6 pb-6 bg-gradient-to-b from-[#0a0a0a] to-black/20 border-l border-white/10 overflow-y-auto custom-scrollbar">
             <AnimatePresence mode="wait">
                 <motion.div
                     key={revision.revid}
@@ -74,10 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                 >
                     {/* Total Revisions */}
                     <div className="space-y-2">
-                        <motion.div 
+                        <div 
                             className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl p-4 border border-blue-500/20 shadow-lg backdrop-blur-sm"
-                            whileHover={{ scale: 1.02 }}
-                            transition={{ duration: 0.2 }}
                         >
                             <div className="flex items-center justify-between">
                                 <span className="text-white/60 text-xs uppercase tracking-wider">Total Revisions</span>
@@ -85,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                                     {totalRevisions.toLocaleString()}
                                 </span>
                             </div>
-                        </motion.div>
+                        </div>
                     </div>
 
                     {/* Revision Info */}
@@ -94,10 +92,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                             <GitBranch size={12} />
                             Current Revision
                         </h2>
-                        <motion.div 
+                        <div 
                             className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm"
-                            whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.08)' }}
-                            transition={{ duration: 0.2 }}
                         >
                             <div className="flex items-center gap-3 text-white mb-3">
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -108,9 +104,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                                     {isAnonymous ? <Globe size={14} /> : <User size={14} />}
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="font-semibold text-sm">
+                                    <a 
+                                        href={isAnonymous 
+                                            ? `https://en.wikipedia.org/wiki/Special:Contributions/${revision.user}`
+                                            : `https://en.wikipedia.org/wiki/User:${encodeURIComponent(revision.user)}`
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-semibold text-sm hover:text-blue-400 transition-colors flex items-center gap-1 group"
+                                    >
                                         {isAnonymous ? 'Anonymous' : revision.user}
-                                    </span>
+                                        <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </a>
                                     {isAnonymous && (
                                         <span className="text-[10px] text-white/40 font-mono">{revision.user}</span>
                                     )}
@@ -120,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                                 <Calendar size={14} className="text-blue-400" />
                                 <span>{format(new Date(revision.timestamp), 'PPP p')}</span>
                             </div>
-                        </motion.div>
+                        </div>
                     </div>
 
                     {/* Location Info - Only for anonymous edits */}
@@ -130,10 +135,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                                 <MapPin size={12} />
                                 Editor Location
                             </h2>
-                            <motion.div 
+                            <div 
                                 className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-2xl p-4 border border-orange-500/20 shadow-lg backdrop-blur-sm"
-                                whileHover={{ scale: 1.02 }}
-                                transition={{ duration: 0.2 }}
                             >
                                 {isLoadingGeo ? (
                                     <div className="flex items-center gap-2 text-white/60">
@@ -158,7 +161,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                                 ) : (
                                     <p className="text-xs text-white/40 italic">Location unavailable</p>
                                 )}
-                            </motion.div>
+                            </div>
                         </div>
                     )}
 
@@ -168,10 +171,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                             <MessageSquare size={12} />
                             Edit Summary
                         </h2>
-                        <motion.div 
+                        <div 
                             className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm"
-                            whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.08)' }}
-                            transition={{ duration: 0.2 }}
                         >
                             <p className="text-white/80 text-sm leading-relaxed">
                                 {revision.comment ? (
@@ -180,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                                     <span className="text-white/40 italic">No edit summary provided.</span>
                                 )}
                             </p>
-                        </motion.div>
+                        </div>
                     </div>
 
                     {/* Technical Details */}
@@ -189,26 +190,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                             <Hash size={12} />
                             Technical Details
                         </h2>
-                        <motion.div 
+                        <div 
                             className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm space-y-3"
-                            whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.08)' }}
-                            transition={{ duration: 0.2 }}
                         >
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-white/40 flex items-center gap-2">
                                     <Info size={12} className="text-purple-400" /> 
                                     Revision ID
                                 </span>
-                                <span className="text-white/80 font-mono bg-white/5 px-2 py-0.5 rounded">{revision.revid}</span>
+                                <a 
+                                    href={`https://en.wikipedia.org/w/index.php?oldid=${revision.revid}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-white/80 font-mono bg-white/5 px-2 py-0.5 rounded hover:bg-blue-500/20 hover:text-blue-300 transition-colors flex items-center gap-1 group"
+                                >
+                                    {revision.revid}
+                                    <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </a>
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-white/40 flex items-center gap-2">
                                     <Info size={12} className="text-blue-400" /> 
                                     Parent ID
                                 </span>
-                                <span className="text-white/80 font-mono bg-white/5 px-2 py-0.5 rounded">{revision.parentid || 'None'}</span>
+                                {revision.parentid ? (
+                                    <a 
+                                        href={`https://en.wikipedia.org/w/index.php?oldid=${revision.parentid}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-white/80 font-mono bg-white/5 px-2 py-0.5 rounded hover:bg-blue-500/20 hover:text-blue-300 transition-colors flex items-center gap-1 group"
+                                    >
+                                        {revision.parentid}
+                                        <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </a>
+                                ) : (
+                                    <span className="text-white/40 font-mono bg-white/5 px-2 py-0.5 rounded">None</span>
+                                )}
                             </div>
-                        </motion.div>
+                        </div>
                     </div>
 
                     {/* Legend */}

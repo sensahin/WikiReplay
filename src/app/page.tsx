@@ -232,7 +232,7 @@ export default function Home() {
         </div>
 
         {/* Sidebar - fixed width */}
-        <div className="w-80 flex-shrink-0">
+        <div className="w-80 flex-shrink-0 h-full">
           <Sidebar revision={revisions[currentIndex]} totalRevisions={revisions.length} />
         </div>
       </div>
