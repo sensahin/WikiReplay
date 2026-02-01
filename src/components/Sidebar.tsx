@@ -3,9 +3,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Revision, isIPAddress, fetchIPGeolocation, GeoLocation } from '@/lib/wikiApi';
-import { format } from 'date-fns';
-import { User, Globe, Loader2 } from 'lucide-react';
+import { Revision, isIPAddress, fetchIPGeolocation, fetchUserInfo, GeoLocation, UserInfo } from '@/lib/wikiApi';
+import { format, formatDistanceToNow } from 'date-fns';
+import { User, Globe, Loader2, Shield, Bot, Edit3, Calendar, AlertTriangle } from 'lucide-react';
 
 // Convert country code to flag emoji
 function getCountryFlag(countryCode: string): string {
@@ -61,10 +61,12 @@ interface SidebarProps {
 
 const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0, currentIndex = 0 }) => {
     const [geoLocation, setGeoLocation] = useState<GeoLocation | null>(null);
+    const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
     const [isLoadingGeo, setIsLoadingGeo] = useState(false);
+    const [isLoadingUser, setIsLoadingUser] = useState(false);
     const isAnonymous = revision ? isIPAddress(revision.user) : false;
 
-    // Fetch geolocation when revision changes
+    // Fetch geolocation for anonymous users
     useEffect(() => {
         let isActive = true;
 
@@ -90,6 +92,30 @@ const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0
         };
 
         checkAndFetchGeo();
+        return () => {
+            isActive = false;
+        };
+    }, [revision, isAnonymous]);
+
+    // Fetch user info for registered users
+    useEffect(() => {
+        let isActive = true;
+
+        const fetchInfo = async () => {
+            if (!revision || isAnonymous) {
+                setUserInfo(null);
+                setIsLoadingUser(false);
+                return;
+            }
+
+            setIsLoadingUser(true);
+            const info = await fetchUserInfo(revision.user);
+            if (!isActive) return;
+            setUserInfo(info);
+            setIsLoadingUser(false);
+        };
+
+        fetchInfo();
         return () => {
             isActive = false;
         };
@@ -162,46 +188,103 @@ const SidebarComponent: React.FC<SidebarProps> = ({ revision, totalRevisions = 0
                     {/* Editor Info */}
                     <div className="space-y-3">
                         <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Editor</div>
-                        <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                        
+                        {/* Name row with icon */}
+                        <div className="flex items-center gap-2.5">
+                            <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
                                 isAnonymous 
                                     ? 'bg-orange-500/10 text-orange-400' 
-                                    : 'bg-blue-500/10 text-blue-400'
+                                    : userInfo?.groups.some(g => g === 'sysop' || g === 'bureaucrat')
+                                        ? 'bg-purple-500/10 text-purple-400'
+                                        : userInfo?.groups.includes('bot')
+                                            ? 'bg-pink-500/10 text-pink-400'
+                                            : 'bg-blue-500/10 text-blue-400'
                             }`}>
-                                {isAnonymous ? <Globe size={16} /> : <User size={16} />}
+                                {isAnonymous ? (
+                                    <Globe size={14} />
+                                ) : userInfo?.groups.some(g => g === 'sysop' || g === 'bureaucrat') ? (
+                                    <Shield size={14} />
+                                ) : userInfo?.groups.includes('bot') ? (
+                                    <Bot size={14} />
+                                ) : (
+                                    <User size={14} />
+                                )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <a 
-                                        href={isAnonymous 
-                                            ? `https://en.wikipedia.org/wiki/Special:Contributions/${revision.user}`
-                                            : `https://en.wikipedia.org/wiki/User:${encodeURIComponent(revision.user)}`
-                                        }
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-sm font-medium text-white hover:text-blue-400 transition-colors truncate"
-                                    >
-                                        {isAnonymous ? 'Anonymous' : revision.user}
-                                    </a>
-                                    {isAnonymous && !isLoadingGeo && geoLocation && (
-                                        <span className="text-sm" title={`${geoLocation.city ? geoLocation.city + ', ' : ''}${geoLocation.country}`}>
-                                            {getCountryFlag(geoLocation.countryCode)}
+                            <a 
+                                href={isAnonymous 
+                                    ? `https://en.wikipedia.org/wiki/Special:Contributions/${revision.user}`
+                                    : `https://en.wikipedia.org/wiki/User:${encodeURIComponent(revision.user)}`
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-white hover:text-blue-400 transition-colors truncate"
+                            >
+                                {isAnonymous ? 'Anonymous' : revision.user}
+                            </a>
+                            {isAnonymous && (
+                                <span className="text-[11px] text-white/40 font-mono">{revision.user}</span>
+                            )}
+                            {/* User role badges */}
+                            {!isAnonymous && userInfo && (
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                    {userInfo.groups.some(g => g === 'sysop' || g === 'bureaucrat') && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-500/20 text-purple-300">
+                                            Admin
+                                        </span>
+                                    )}
+                                    {userInfo.groups.includes('bot') && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-pink-500/20 text-pink-300">
+                                            Bot
+                                        </span>
+                                    )}
+                                    {userInfo.blocked && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-500/20 text-red-300" title={userInfo.blockReason}>
+                                            Blocked
                                         </span>
                                     )}
                                 </div>
-                                {isAnonymous && (
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-[10px] text-white/30 font-mono">{revision.user}</span>
-                                        {isLoadingGeo && <Loader2 size={10} className="animate-spin text-white/30" />}
-                                        {!isLoadingGeo && geoLocation && (
-                                            <span className="text-[10px] text-white/30">
-                                                {[geoLocation.city, geoLocation.country].filter(Boolean).join(', ')}
-                                            </span>
-                                        )}
-                                    </div>
+                            )}
+                        </div>
+                        
+                        {/* Anonymous user location */}
+                        {isAnonymous && (
+                            <div className="flex items-center gap-2 text-[11px] text-white/40">
+                                {isLoadingGeo && <Loader2 size={10} className="animate-spin" />}
+                                {!isLoadingGeo && geoLocation && (
+                                    <>
+                                        <span>{getCountryFlag(geoLocation.countryCode)}</span>
+                                        <span>{[geoLocation.city, geoLocation.country].filter(Boolean).join(', ')}</span>
+                                    </>
                                 )}
                             </div>
-                        </div>
+                        )}
+                        
+                        {/* Registered user stats */}
+                        {!isAnonymous && (
+                            <>
+                                {isLoadingUser ? (
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 size={10} className="animate-spin text-white/30" />
+                                        <span className="text-[11px] text-white/30">Loading...</span>
+                                    </div>
+                                ) : userInfo ? (
+                                    <div className="flex items-center gap-3 text-[11px] text-white/50">
+                                        <div className="flex items-center gap-1">
+                                            <Edit3 size={11} className="text-white/30" />
+                                            <span><span className="text-white/70 font-medium">{userInfo.editcount.toLocaleString()}</span> edits</span>
+                                        </div>
+                                        {userInfo.registration && (
+                                            <div className="flex items-center gap-1">
+                                                <Calendar size={11} className="text-white/30" />
+                                                <span title={format(new Date(userInfo.registration), 'MMMM d, yyyy')}>
+                                                    {formatDistanceToNow(new Date(userInfo.registration), { addSuffix: false })}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
                     </div>
 
                     {/* Date */}

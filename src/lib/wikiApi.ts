@@ -276,3 +276,55 @@ export async function fetchIPGeolocation(ip: string): Promise<GeoLocation | null
     return null;
   }
 }
+
+// User information types and functions
+export interface UserInfo {
+  name: string;
+  editcount: number;
+  registration: string | null;
+  groups: string[];
+  gender: 'male' | 'female' | 'unknown';
+  blocked: boolean;
+  blockReason?: string;
+  blockExpiry?: string;
+}
+
+// Fetch information about a Wikipedia user
+export async function fetchUserInfo(username: string): Promise<UserInfo | null> {
+  if (!username || isIPAddress(username)) return null;
+
+  const params = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    list: 'users',
+    ususers: username,
+    usprop: 'editcount|registration|groups|gender|blockinfo',
+    origin: '*',
+  });
+
+  try {
+    const response = await fetch(`${WIKI_API_URL}?${params.toString()}`);
+    const data = await response.json();
+
+    const users = data.query?.users;
+    if (!users || users.length === 0) return null;
+
+    const user = users[0];
+    
+    // Check if user exists (missing property indicates non-existent user)
+    if (user.missing !== undefined) return null;
+
+    return {
+      name: user.name,
+      editcount: user.editcount ?? 0,
+      registration: user.registration ?? null,
+      groups: (user.groups ?? []).filter((g: string) => !['*', 'user', 'autoconfirmed'].includes(g)),
+      gender: user.gender ?? 'unknown',
+      blocked: user.blockid !== undefined,
+      blockReason: user.blockreason,
+      blockExpiry: user.blockexpiry,
+    };
+  } catch {
+    return null;
+  }
+}
