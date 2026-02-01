@@ -188,28 +188,6 @@ export default function Home() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
-                  {/* Loading overlay indicator */}
-                  <AnimatePresence>
-                    {isLoading && (
-                      <motion.div 
-                        className="absolute inset-x-0 -top-2 z-20 flex justify-center"
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                      >
-                        <div className="bg-gradient-to-r from-blue-500 to-purple-500 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-blue-500/40 flex items-center gap-2">
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                          >
-                            <Loader2 size={12} />
-                          </motion.div>
-                          Syncing revision...
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  
                   <DiffViewer 
                     diff={diff} 
                     isTransitioning={isTransitioning}
@@ -219,6 +197,29 @@ export default function Home() {
               )}
             </AnimatePresence>
           </div>
+
+          {/* Fixed Syncing indicator - below header */}
+          <AnimatePresence>
+            {isLoading && diff.length > 0 && (
+              <motion.div 
+                className="fixed top-24 left-1/2 -translate-x-1/2 z-50"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="bg-gradient-to-r from-blue-500 to-purple-500 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg shadow-blue-500/40 flex items-center gap-2">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <Loader2 size={14} />
+                  </motion.div>
+                  Syncing revision...
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Fixed Timeline Control at Bottom */}
           <div className="fixed bottom-0 left-0 z-40" style={{ right: '320px' }}>

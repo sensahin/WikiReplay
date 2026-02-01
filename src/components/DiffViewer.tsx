@@ -53,7 +53,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ diff, isTransitioning = 
     return (
         <motion.div 
             ref={containerRef}
-            className="max-w-4xl mx-auto font-serif text-lg leading-relaxed p-12 bg-white/5 backdrop-blur-xl rounded-[2rem] border border-white/10 shadow-2xl overflow-y-auto min-h-[60vh] max-h-[calc(100vh-320px)] scroll-smooth"
+            className="max-w-4xl font-serif text-lg leading-relaxed p-12 bg-white/5 backdrop-blur-xl rounded-[2rem] border border-white/10 shadow-2xl overflow-y-auto min-h-[60vh] max-h-[calc(100vh-320px)] scroll-smooth"
             initial={false}
             animate={{ 
                 opacity: isTransitioning ? 0.3 : 1,

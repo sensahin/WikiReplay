@@ -6,6 +6,8 @@ export interface Revision {
   timestamp: string;
   comment: string;
   content?: string;
+  tags?: string[];
+  minor?: boolean;
 }
 
 export interface WikiPageInfo {
@@ -26,7 +28,7 @@ export async function fetchRevisionHistory(title: string, limit: number = 500, f
       format: 'json',
       prop: 'revisions',
       titles: title,
-      rvprop: 'ids|timestamp|user|comment',
+      rvprop: 'ids|timestamp|user|comment|tags|flags',
       rvlimit: Math.min(limit, 500).toString(), // Wikipedia max is 500 per request
       origin: '*',
     });
