@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useTransition } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, fetchRevisionExternalLinks, Revision, isIPAddress, RevisionProgress } from '@/lib/wikiApi';
 import { calculateDiff, ExtendedChange, extractInfoboxes, InfoboxData } from '@/lib/diffUtils';
@@ -254,6 +254,7 @@ export default function Home() {
   const fullHistoryRef = useRef<Revision[]>([]);
   const sharedRevisionRef = useRef<number | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   // Load article from URL or fetch random on initial mount
   useEffect(() => {
@@ -272,12 +273,12 @@ export default function Home() {
           setTitle(randomTitle);
           setSearchInput(randomTitle);
           // Update URL without reload
-          window.history.replaceState(null, '', `/${encodeURIComponent(randomTitle)}`);
+          router.replace(`/${encodeURIComponent(randomTitle)}`);
         } catch {
           // Fallback to a default article if random fetch fails
           setTitle('Wikipedia');
           setSearchInput('Wikipedia');
-          window.history.replaceState(null, '', '/Wikipedia');
+          router.replace('/Wikipedia');
         }
       }
     };
@@ -685,13 +686,13 @@ export default function Home() {
         setTimeout(() => {
           setSharedLinkAutoPlay(true);
           // Clean up URL params after starting playback
-          window.history.replaceState(null, '', window.location.pathname);
+          router.replace(pathname || '/', { scroll: false });
         }, 500);
       }
       // Clear the ref so we don't keep navigating
       sharedRevisionRef.current = null;
     }
-  }, [revisions]);
+  }, [revisions, pathname, router]);
 
   useEffect(() => {
     setError(null);
@@ -811,7 +812,7 @@ export default function Home() {
       const newTitle = articleTitle.trim();
       setTitle(newTitle);
       // Update URL to reflect the new article
-      window.history.pushState(null, '', `/${encodeURIComponent(newTitle)}`);
+      router.push(`/${encodeURIComponent(newTitle)}`);
     }
   };
 
@@ -822,7 +823,7 @@ export default function Home() {
       setSearchInput(randomTitle);
       setTitle(randomTitle);
       // Update URL to reflect the new article
-      window.history.pushState(null, '', `/${encodeURIComponent(randomTitle)}`);
+      router.push(`/${encodeURIComponent(randomTitle)}`);
     } catch {
       setError('Failed to fetch random article');
     } finally {
