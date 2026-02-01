@@ -9,6 +9,7 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { article } = await params;
   const articleTitle = article ? decodeURIComponent(article.join('/').replace(/_/g, ' ')) : 'Wikipedia';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wikireplay.app';
   
   return {
     title: `${articleTitle} - Edit History | WikiReplay`,
@@ -18,11 +19,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: `Visualize how "${articleTitle}" evolved on Wikipedia through its complete edit history.`,
       type: 'website',
       siteName: 'WikiReplay',
+      images: [
+        {
+          url: `${baseUrl}/opengraph-image`,
+          width: 1200,
+          height: 630,
+          alt: `WikiReplay - ${articleTitle}`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${articleTitle} - Edit History | WikiReplay`,
       description: `Watch the complete edit history of "${articleTitle}" on Wikipedia.`,
+      images: [`${baseUrl}/twitter-image`],
     },
     alternates: {
       canonical: `/${encodeURIComponent(articleTitle.replace(/ /g, '_'))}`,

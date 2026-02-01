@@ -70,7 +70,7 @@ const defaultViewerSettings: ViewerSettings = {
   highlightIntensity: 'subtle',
   viewStyle: 'inline',
   autoScroll: true,
-  autoPlay: true,
+  autoPlay: false,
   fontSize: 16,
   lineHeight: 1.9,
   maxRevisions: 50000,
