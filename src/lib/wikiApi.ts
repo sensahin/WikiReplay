@@ -18,6 +18,21 @@ export interface WikiPageInfo {
 
 const WIKI_API_URL = 'https://en.wikipedia.org/w/api.php';
 
+export async function fetchRandomArticle(): Promise<string> {
+  const params = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    list: 'random',
+    rnnamespace: '0', // Main namespace (articles only)
+    rnlimit: '1',
+    origin: '*',
+  });
+
+  const response = await fetch(`${WIKI_API_URL}?${params.toString()}`);
+  const data = await response.json();
+  return data.query.random[0].title;
+}
+
 export async function fetchRevisionHistory(title: string, limit: number = 500, fetchAll: boolean = true): Promise<Revision[]> {
   const allRevisions: Revision[] = [];
   let continueToken: string | undefined = undefined;

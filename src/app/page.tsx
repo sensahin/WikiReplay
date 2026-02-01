@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchRevisionHistory, fetchRevisionContent, Revision } from '@/lib/wikiApi';
+import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, Revision } from '@/lib/wikiApi';
 import { calculateDiff, ExtendedChange } from '@/lib/diffUtils';
 import { TimelineSlider } from '@/components/TimelineSlider';
 import { DiffViewer } from '@/components/DiffViewer';
@@ -12,8 +12,8 @@ import { SearchAutocomplete } from '@/components/SearchAutocomplete';
 import { Loader2, History, Github, Menu, X } from 'lucide-react';
 
 export default function Home() {
-  const [title, setTitle] = useState('React (software)');
-  const [searchInput, setSearchInput] = useState('React (software)');
+  const [title, setTitle] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [diff, setDiff] = useState<ExtendedChange[]>([]);
@@ -22,6 +22,22 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const scrollToChangeRef = useRef<(() => void) | null>(null);
+
+  // Load a random article on initial mount
+  useEffect(() => {
+    const loadRandomArticle = async () => {
+      try {
+        const randomTitle = await fetchRandomArticle();
+        setTitle(randomTitle);
+        setSearchInput(randomTitle);
+      } catch (err) {
+        // Fallback to a default article if random fetch fails
+        setTitle('Wikipedia');
+        setSearchInput('Wikipedia');
+      }
+    };
+    loadRandomArticle();
+  }, []);
 
   const loadArticle = async (articleTitle: string) => {
     setIsLoading(true);
@@ -49,7 +65,9 @@ export default function Home() {
   };
 
   useEffect(() => {
-    loadArticle(title);
+    if (title) {
+      loadArticle(title);
+    }
   }, [title]);
 
   const handleRevisionChange = async (index: number) => {
@@ -102,14 +120,14 @@ export default function Home() {
       {/* Header */}
       <header className="h-14 md:h-16 border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-xl sticky top-0 z-50 flex items-center px-4 md:px-6 lg:px-10">
         {/* Logo */}
-        <div className="flex items-center gap-2 md:gap-2.5">
+        <a href="/" className="flex items-center gap-2 md:gap-2.5 hover:opacity-80 transition-opacity">
           <div className="w-7 h-7 md:w-8 md:h-8 bg-gradient-to-br from-blue-500 to-violet-600 rounded-lg flex items-center justify-center">
             <History className="text-white" size={14} />
           </div>
           <span className="text-sm md:text-[15px] font-semibold tracking-tight hidden sm:block">
-            WikiDiff
+            WikiReplay
           </span>
-        </div>
+        </a>
 
         {/* Search - centered on desktop, flex-1 on mobile */}
         <div className="flex-1 flex justify-center mx-3 md:mx-6 lg:mr-[340px]">
@@ -126,7 +144,7 @@ export default function Home() {
         {/* Right side buttons */}
         <div className="flex items-center gap-2">
           <a
-            href="https://github.com/yourusername/wikidiff"
+            href="https://github.com/yourusername/wikireplay"
             target="_blank"
             rel="noopener noreferrer"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"

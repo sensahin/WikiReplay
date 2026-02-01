@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WikiDiff - Watch Wikipedia Articles Evolve",
+  title: "WikiReplay - Watch Wikipedia Articles Evolve",
   description: "Visualize the complete edit history of any Wikipedia article. Watch how articles evolved from their first edit to today.",
 };
 

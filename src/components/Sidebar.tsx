@@ -174,7 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
                     {/* Edit Summary */}
                     {revision.comment && (
                         <div className="space-y-2">
-                            <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Summary</div>
+                            <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Change Summary</div>
                             <p className="text-sm text-white/60 leading-relaxed">
                                 {revision.comment}
                             </p>

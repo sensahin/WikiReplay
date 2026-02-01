@@ -1,10 +1,10 @@
-# WikiDiff
+# WikiReplay
 
 **Watch Wikipedia articles evolve through time.**
 
-WikiDiff is an interactive visualization tool that lets you explore the complete edit history of any Wikipedia article. Scrub through revisions, watch content appear and disappear, and discover the story behind how articles evolved from their first edit to today.
+WikiReplay is an interactive visualization tool that lets you explore the complete edit history of any Wikipedia article. Scrub through revisions, watch content appear and disappear, and discover the story behind how articles evolved from their first edit to today.
 
-![WikiDiff Screenshot](screenshot.png)
+![WikiReplay Screenshot](screenshot.png)
 
 ## Features
 
@@ -34,8 +34,8 @@ WikiDiff is an interactive visualization tool that lets you explore the complete
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/wikidiff.git
-   cd wikidiff
+   git clone https://github.com/yourusername/wikireplay.git
+   cd wikireplay
    ```
 
 2. Install dependencies:
@@ -66,7 +66,7 @@ npm start
 
 ## API Usage
 
-WikiDiff uses the following public APIs:
+WikiReplay uses the following public APIs:
 
 - **Wikipedia API** - For fetching article revisions and content
 - **ip-api.com** - For geolocation of anonymous editors (optional feature)
