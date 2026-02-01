@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useTransition } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchRevisionHistory, fetchRevisionContent, fetchRandomArticle, fetchRevisionExternalLinks, Revision, isIPAddress, RevisionProgress } from '@/lib/wikiApi';
 import { calculateDiff, ExtendedChange, extractInfoboxes, InfoboxData } from '@/lib/diffUtils';
@@ -253,7 +253,6 @@ export default function Home() {
   const scrollToChangeRef = useRef<(() => void) | null>(null);
   const fullHistoryRef = useRef<Revision[]>([]);
   const sharedRevisionRef = useRef<number | null>(null);
-  const router = useRouter();
   const pathname = usePathname();
 
   // Load article from URL or fetch random on initial mount

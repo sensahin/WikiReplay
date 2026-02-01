@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Revision, isIPAddress, fetchIPGeolocation, fetchUserInfo, GeoLocation, UserInfo } from '@/lib/wikiApi';
 import { format, formatDistanceToNow } from 'date-fns';
-import { User, Globe, Loader2, Shield, Bot, Edit3, Calendar, AlertTriangle } from 'lucide-react';
+import { User, Globe, Loader2, Shield, Bot, Edit3, Calendar } from 'lucide-react';
 
 // Convert country code to flag emoji
 function getCountryFlag(countryCode: string): string {

@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://wikireplay.app'),
   title: {
     default: "WikiReplay - Watch Wikipedia Articles Evolve",
     template: "%s | WikiReplay",
