@@ -26,7 +26,8 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     try {
-      const history = await fetchRevisionHistory(articleTitle);
+      // Fetch all revisions (no practical limit - will fetch all available)
+      const history = await fetchRevisionHistory(articleTitle, 50000, true);
       // Reverse to have chronological order for the slider (older to newer)
       const reversedHistory = [...history].reverse();
       setRevisions(reversedHistory);

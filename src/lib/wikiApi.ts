@@ -16,27 +16,47 @@ export interface WikiPageInfo {
 
 const WIKI_API_URL = 'https://en.wikipedia.org/w/api.php';
 
-export async function fetchRevisionHistory(title: string, limit: number = 20): Promise<Revision[]> {
-  const params = new URLSearchParams({
-    action: 'query',
-    format: 'json',
-    prop: 'revisions',
-    titles: title,
-    rvprop: 'ids|timestamp|user|comment',
-    rvlimit: limit.toString(),
-    origin: '*',
-  });
+export async function fetchRevisionHistory(title: string, limit: number = 500, fetchAll: boolean = true): Promise<Revision[]> {
+  const allRevisions: Revision[] = [];
+  let continueToken: string | undefined = undefined;
+  
+  do {
+    const params = new URLSearchParams({
+      action: 'query',
+      format: 'json',
+      prop: 'revisions',
+      titles: title,
+      rvprop: 'ids|timestamp|user|comment',
+      rvlimit: Math.min(limit, 500).toString(), // Wikipedia max is 500 per request
+      origin: '*',
+    });
 
-  const response = await fetch(`${WIKI_API_URL}?${params.toString()}`);
-  const data = await response.json();
-  const pages = data.query.pages;
-  const pageId = Object.keys(pages)[0];
+    if (continueToken) {
+      params.append('rvcontinue', continueToken);
+    }
 
-  if (pageId === '-1') {
-    throw new Error('Page not found');
-  }
+    const response = await fetch(`${WIKI_API_URL}?${params.toString()}`);
+    const data = await response.json();
+    const pages = data.query.pages;
+    const pageId = Object.keys(pages)[0];
 
-  return pages[pageId].revisions;
+    if (pageId === '-1') {
+      throw new Error('Page not found');
+    }
+
+    const revisions = pages[pageId].revisions || [];
+    allRevisions.push(...revisions);
+
+    // Check if there are more revisions to fetch
+    continueToken = data.continue?.rvcontinue;
+    
+    // If we've reached the requested limit or don't want all, stop
+    if (!fetchAll || allRevisions.length >= limit) {
+      break;
+    }
+  } while (continueToken);
+
+  return allRevisions.slice(0, limit);
 }
 
 export async function fetchRevisionContent(revid: number): Promise<string> {
