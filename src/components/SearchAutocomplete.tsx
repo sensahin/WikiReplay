@@ -26,6 +26,8 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
+    const isInitialMount = useRef(true);
+    const hasUserInteracted = useRef(false);
 
     // Fetch suggestions with debounce
     const fetchSuggestions = useCallback(async (query: string) => {
@@ -39,7 +41,8 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
         try {
             const results = await fetchSearchSuggestions(query);
             setSuggestions(results);
-            setIsOpen(results.length > 0);
+            // Only open if user has interacted with the input
+            setIsOpen(results.length > 0 && hasUserInteracted.current);
             setSelectedIndex(-1);
         } catch {
             setSuggestions([]);
@@ -48,8 +51,13 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
         }
     }, []);
 
-    // Debounced search
+    // Debounced search - skip on initial mount
     useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);
         }
@@ -118,13 +126,20 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
         onSelect(title);
         setIsOpen(false);
         setSelectedIndex(-1);
+        hasUserInteracted.current = false; // Reset after selection
         inputRef.current?.blur();
     };
 
     const handleFocus = () => {
+        hasUserInteracted.current = true;
         if (suggestions.length > 0) {
             setIsOpen(true);
         }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        hasUserInteracted.current = true;
+        onChange(e.target.value);
     };
 
     return (
@@ -140,7 +155,7 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
                     ref={inputRef}
                     type="text"
                     value={value}
-                    onChange={(e) => onChange(e.target.value)}
+                    onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={handleFocus}
                     placeholder={placeholder}

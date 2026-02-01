@@ -1,17 +1,56 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Revision } from '@/lib/wikiApi';
+import { Revision, isIPAddress, fetchIPGeolocation, GeoLocation } from '@/lib/wikiApi';
 import { format } from 'date-fns';
-import { User, Calendar, MessageSquare, Info, Hash, GitBranch } from 'lucide-react';
+import { User, Calendar, MessageSquare, Info, Hash, GitBranch, MapPin, Globe, Loader2 } from 'lucide-react';
+
+// Convert country code to flag emoji
+function getCountryFlag(countryCode: string): string {
+    const codePoints = countryCode
+        .toUpperCase()
+        .split('')
+        .map(char => 127397 + char.charCodeAt(0));
+    return String.fromCodePoint(...codePoints);
+}
 
 interface SidebarProps {
     revision?: Revision;
+    totalRevisions?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ revision }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }) => {
+    const [geoLocation, setGeoLocation] = useState<GeoLocation | null>(null);
+    const [isLoadingGeo, setIsLoadingGeo] = useState(false);
+    const [isAnonymous, setIsAnonymous] = useState(false);
+
+    // Fetch geolocation when revision changes
+    useEffect(() => {
+        if (!revision) {
+            setGeoLocation(null);
+            setIsAnonymous(false);
+            return;
+        }
+
+        const checkAndFetchGeo = async () => {
+            const anonymous = isIPAddress(revision.user);
+            setIsAnonymous(anonymous);
+
+            if (anonymous) {
+                setIsLoadingGeo(true);
+                const geo = await fetchIPGeolocation(revision.user);
+                setGeoLocation(geo);
+                setIsLoadingGeo(false);
+            } else {
+                setGeoLocation(null);
+            }
+        };
+
+        checkAndFetchGeo();
+    }, [revision?.revid, revision?.user]);
+
     if (!revision) return (
         <div className="w-full h-full flex flex-col gap-6 p-6 bg-gradient-to-b from-white/5 to-black/20 border-l border-white/10">
             <div className="animate-pulse flex flex-col gap-4">
@@ -33,11 +72,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision }) => {
                     transition={{ duration: 0.3, ease: 'easeOut' }}
                     className="space-y-6"
                 >
+                    {/* Total Revisions */}
+                    <div className="space-y-2">
+                        <motion.div 
+                            className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl p-4 border border-blue-500/20 shadow-lg backdrop-blur-sm"
+                            whileHover={{ scale: 1.02 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="text-white/60 text-xs uppercase tracking-wider">Total Revisions</span>
+                                <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
+                                    {totalRevisions.toLocaleString()}
+                                </span>
+                            </div>
+                        </motion.div>
+                    </div>
+
                     {/* Revision Info */}
                     <div className="space-y-2">
                         <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2">
                             <GitBranch size={12} />
-                            Revision Info
+                            Current Revision
                         </h2>
                         <motion.div 
                             className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm"
@@ -45,10 +100,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision }) => {
                             transition={{ duration: 0.2 }}
                         >
                             <div className="flex items-center gap-3 text-white mb-3">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-                                    <User size={14} />
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                    isAnonymous 
+                                        ? 'bg-gradient-to-br from-orange-500 to-red-500' 
+                                        : 'bg-gradient-to-br from-blue-500 to-purple-500'
+                                }`}>
+                                    {isAnonymous ? <Globe size={14} /> : <User size={14} />}
                                 </div>
-                                <span className="font-semibold text-sm">{revision.user}</span>
+                                <div className="flex flex-col">
+                                    <span className="font-semibold text-sm">
+                                        {isAnonymous ? 'Anonymous' : revision.user}
+                                    </span>
+                                    {isAnonymous && (
+                                        <span className="text-[10px] text-white/40 font-mono">{revision.user}</span>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-3 text-white/60 text-xs">
                                 <Calendar size={14} className="text-blue-400" />
@@ -56,6 +122,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision }) => {
                             </div>
                         </motion.div>
                     </div>
+
+                    {/* Location Info - Only for anonymous edits */}
+                    {isAnonymous && (
+                        <div className="space-y-2">
+                            <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2">
+                                <MapPin size={12} />
+                                Editor Location
+                            </h2>
+                            <motion.div 
+                                className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-2xl p-4 border border-orange-500/20 shadow-lg backdrop-blur-sm"
+                                whileHover={{ scale: 1.02 }}
+                                transition={{ duration: 0.2 }}
+                            >
+                                {isLoadingGeo ? (
+                                    <div className="flex items-center gap-2 text-white/60">
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span className="text-xs">Looking up location...</span>
+                                    </div>
+                                ) : geoLocation ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-2xl">{getCountryFlag(geoLocation.countryCode)}</span>
+                                            <div>
+                                                <p className="font-semibold text-sm text-white">{geoLocation.country}</p>
+                                                <p className="text-xs text-white/50">
+                                                    {[geoLocation.city, geoLocation.region].filter(Boolean).join(', ')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {geoLocation.isp && (
+                                            <p className="text-[10px] text-white/30 mt-2">ISP: {geoLocation.isp}</p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-white/40 italic">Location unavailable</p>
+                                )}
+                            </motion.div>
+                        </div>
+                    )}
 
                     {/* Edit Summary */}
                     <div className="space-y-2">

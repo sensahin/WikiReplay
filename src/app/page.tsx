@@ -31,17 +31,15 @@ export default function Home() {
       // Reverse to have chronological order for the slider (older to newer)
       const reversedHistory = [...history].reverse();
       setRevisions(reversedHistory);
-      setCurrentIndex(reversedHistory.length - 1);
+      setCurrentIndex(0); // Start from the first (oldest) revision
 
-      // Load content for the latest and its parent to show initial diff
+      // Load content for the first revision (comparing with empty - the article's creation)
       if (reversedHistory.length > 0) {
-        const latestRev = reversedHistory[reversedHistory.length - 1];
-        const prevRev = reversedHistory[reversedHistory.length - 2];
+        const firstRev = reversedHistory[0];
+        const firstContent = await fetchRevisionContent(firstRev.revid);
 
-        const latestContent = await fetchRevisionContent(latestRev.revid);
-        const prevContent = prevRev ? await fetchRevisionContent(prevRev.revid) : '';
-
-        const newDiff = calculateDiff(prevContent, latestContent);
+        // First revision is compared against empty string (article creation)
+        const newDiff = calculateDiff('', firstContent);
         setDiff(newDiff);
       }
     } catch (err) {
@@ -141,14 +139,7 @@ export default function Home() {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* Article Title Overlay */}
-          <div className="px-12 pt-8 pb-4 z-10 bg-gradient-to-b from-[#050505] via-[#050505]/95 to-transparent">
-            <div className="flex items-center gap-4 mb-2">
-              <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/20">
-                Wikipedia
-              </span>
-              <span className="text-white/20 text-xs">—</span>
-              <span className="text-white/40 text-xs">{revisions.length} Revisions tracked</span>
-            </div>
+          <div className="px-12 pt-6 pb-4 z-10 bg-gradient-to-b from-[#050505] via-[#050505]/95 to-transparent">
             <h2 className="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/50">
               {title}
             </h2>
@@ -242,7 +233,7 @@ export default function Home() {
 
         {/* Sidebar - fixed width */}
         <div className="w-80 flex-shrink-0">
-          <Sidebar revision={revisions[currentIndex]} />
+          <Sidebar revision={revisions[currentIndex]} totalRevisions={revisions.length} />
         </div>
       </div>
 

@@ -145,3 +145,43 @@ export async function fetchSearchSuggestions(query: string, limit: number = 8): 
     return [];
   }
 }
+
+// IP Geolocation types and functions
+export interface GeoLocation {
+  country: string;
+  countryCode: string;
+  city: string;
+  region: string;
+  isp: string;
+}
+
+// Check if a string is an IP address (anonymous Wikipedia editor)
+export function isIPAddress(user: string): boolean {
+  // IPv4 pattern
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  // IPv6 pattern (simplified)
+  const ipv6Pattern = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:|^([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}$|^([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}$|^([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}$|^([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}$|^[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})$|^:((:[0-9a-fA-F]{1,4}){1,7}|:)$/;
+  
+  return ipv4Pattern.test(user) || ipv6Pattern.test(user);
+}
+
+// Fetch geolocation for an IP address
+export async function fetchIPGeolocation(ip: string): Promise<GeoLocation | null> {
+  try {
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode,regionName,city,isp`);
+    const data = await response.json();
+    
+    if (data.status === 'success') {
+      return {
+        country: data.country,
+        countryCode: data.countryCode,
+        city: data.city,
+        region: data.regionName,
+        isp: data.isp,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
