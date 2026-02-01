@@ -182,8 +182,8 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
                 </div>
 
                 {/* Timeline info row */}
-                <div className="mt-2 md:mt-3 flex items-center justify-between">
-                    <span className="text-[10px] md:text-[11px] text-white/30 hidden sm:block">
+                <div className="mt-2 md:mt-3 grid grid-cols-[1fr_auto_1fr] items-center">
+                    <span className="text-[10px] md:text-[11px] text-white/30 hidden sm:block text-left min-w-0">
                         {revisions.length > 0 && formatUtcMonth(revisions[0].timestamp)}
                     </span>
                     
@@ -193,7 +193,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="flex flex-col sm:flex-row items-center gap-1 sm:gap-3 text-xs sm:text-sm w-full sm:w-auto justify-center"
+                            className="flex flex-col sm:flex-row items-center gap-1 sm:gap-3 text-xs sm:text-sm justify-center px-2"
                         >
                             <div className="flex items-center gap-2 sm:gap-3">
                                 <span className="text-white font-medium">
@@ -211,7 +211,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
                         </motion.div>
                     </AnimatePresence>
 
-                    <span className="text-[10px] md:text-[11px] text-white/30 hidden sm:block">
+                    <span className="text-[10px] md:text-[11px] text-white/30 hidden sm:block text-right min-w-0">
                         {revisions.length > 0 && formatUtcMonth(revisions[revisions.length - 1].timestamp)}
                     </span>
                 </div>
