@@ -136,23 +136,28 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
 
     const contentKey = viewStyle === 'split'
         ? `${leftMarkdown.slice(0, 120)}-${rightMarkdown.slice(0, 120)}`
-        : diffMarkdown.slice(0, 200);
+        : `${diff.length}-${diffMarkdown.slice(0, 100)}-${diffMarkdown.slice(-100)}`;
 
-    const scrollToFirstChange = useCallback(() => {
-        if (!containerRef.current) return;
-        const container = containerRef.current;
-        const element = container.querySelector('ins, del') as HTMLElement | null;
-        if (!element) return;
+    const scrollToElementIfNeeded = useCallback((element: HTMLElement) => {
+        const rect = element.getBoundingClientRect();
+        const isVisible = rect.bottom > 0 && rect.top < window.innerHeight;
+        if (isVisible) return;
 
-        const containerRect = container.getBoundingClientRect();
-        const elementRect = element.getBoundingClientRect();
-        const scrollTop = element.offsetTop - containerRect.height / 2 + elementRect.height / 2;
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const targetY = scrollTop + rect.top - (window.innerHeight / 2) + (rect.height / 2);
 
-        container.scrollTo({
-            top: Math.max(0, scrollTop),
+        window.scrollTo({
+            top: Math.max(0, targetY),
             behavior: 'smooth',
         });
     }, []);
+
+    const scrollToFirstChange = useCallback(() => {
+        if (!containerRef.current) return;
+        const element = containerRef.current.querySelector('ins, del') as HTMLElement | null;
+        if (!element) return;
+        scrollToElementIfNeeded(element);
+    }, [scrollToElementIfNeeded]);
 
     useEffect(() => {
         if (onScrollToChange) {
@@ -160,13 +165,34 @@ const DiffViewerComponent: React.FC<DiffViewerProps> = ({
         }
     }, [onScrollToChange, scrollToFirstChange]);
 
+    const lastDiffRef = useRef<ExtendedChange[] | null>(null);
+
     useEffect(() => {
-        if (!autoScroll) return;
-        if (!isTransitioning && diff.length > 0) {
-            const timer = setTimeout(scrollToFirstChange, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [autoScroll, isTransitioning, diff, scrollToFirstChange]);
+        if (!autoScroll || diff.length === 0) return;
+
+        // Don't scroll if diff hasn't changed
+        if (lastDiffRef.current === diff) return;
+        lastDiffRef.current = diff;
+
+        let attempts = 0;
+        const maxAttempts = 8;
+
+        const performScroll = () => {
+            if (!containerRef.current) return;
+            const element = containerRef.current.querySelector('ins, del') as HTMLElement | null;
+            if (!element) {
+                if (attempts < maxAttempts) {
+                    attempts += 1;
+                    setTimeout(performScroll, 120);
+                }
+                return;
+            }
+            scrollToElementIfNeeded(element);
+        };
+
+        const timer = setTimeout(performScroll, 250);
+        return () => clearTimeout(timer);
+    }, [autoScroll, diff, scrollToElementIfNeeded]);
 
     const hasInfoboxes = showTemplates && infoboxes && infoboxes.length > 0;
 
