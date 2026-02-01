@@ -8,7 +8,8 @@ import { calculateDiff, ExtendedChange } from '@/lib/diffUtils';
 import { TimelineSlider } from '@/components/TimelineSlider';
 import { DiffViewer } from '@/components/DiffViewer';
 import { Sidebar } from '@/components/Sidebar';
-import { Search, Loader2, History, Sparkles } from 'lucide-react';
+import { SearchAutocomplete } from '@/components/SearchAutocomplete';
+import { Loader2, History, Sparkles } from 'lucide-react';
 
 export default function Home() {
   const [title, setTitle] = useState('React (software)');
@@ -95,10 +96,9 @@ export default function Home() {
     scrollToChangeRef.current = scrollFn;
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchInput.trim()) {
-      setTitle(searchInput.trim());
+  const handleSelectArticle = (articleTitle: string) => {
+    if (articleTitle.trim() && articleTitle.trim() !== title) {
+      setTitle(articleTitle.trim());
     }
   };
 
@@ -119,18 +119,14 @@ export default function Home() {
           </h1>
         </div>
 
-        <form onSubmit={handleSearch} className="flex-1 max-w-xl mx-8">
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-blue-400 transition-colors" size={18} />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search Wikipedia article..."
-              className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 transition-all text-sm"
-            />
-          </div>
-        </form>
+        <div className="flex-1 max-w-xl mx-8">
+          <SearchAutocomplete
+            value={searchInput}
+            onChange={setSearchInput}
+            onSelect={handleSelectArticle}
+            placeholder="Search Wikipedia article..."
+          />
+        </div>
 
         <div className="w-40 flex justify-end">
           <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] font-medium text-white/40 uppercase tracking-widest flex items-center gap-2">

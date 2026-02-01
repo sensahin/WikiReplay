@@ -75,3 +75,53 @@ export async function fetchRevisionHtml(revid: number): Promise<string> {
   const data = await response.json();
   return data.parse.text['*'];
 }
+
+export interface SearchSuggestion {
+  title: string;
+  description: string;
+  thumbnail?: string;
+}
+
+export async function fetchSearchSuggestions(query: string, limit: number = 8): Promise<SearchSuggestion[]> {
+  if (!query.trim()) return [];
+
+  const params = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    generator: 'prefixsearch',
+    gpssearch: query,
+    gpslimit: limit.toString(),
+    prop: 'pageprops|pageimages|description',
+    ppprop: 'displaytitle',
+    piprop: 'thumbnail',
+    pithumbsize: '60',
+    pilimit: limit.toString(),
+    redirects: '',
+    origin: '*',
+  });
+
+  try {
+    const response = await fetch(`${WIKI_API_URL}?${params.toString()}`);
+    const data = await response.json();
+
+    if (!data.query?.pages) return [];
+
+    const pages = Object.values(data.query.pages) as Array<{
+      title: string;
+      description?: string;
+      thumbnail?: { source: string };
+      index: number;
+    }>;
+
+    // Sort by index (search relevance)
+    return pages
+      .sort((a, b) => a.index - b.index)
+      .map((page) => ({
+        title: page.title,
+        description: page.description || '',
+        thumbnail: page.thumbnail?.source,
+      }));
+  } catch {
+    return [];
+  }
+}
