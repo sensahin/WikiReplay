@@ -1,69 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WikiDiff
+
+**Watch Wikipedia articles evolve through time.**
+
+WikiDiff is an interactive visualization tool that lets you explore the complete edit history of any Wikipedia article. Scrub through revisions, watch content appear and disappear, and discover the story behind how articles evolved from their first edit to today.
+
+![WikiDiff Screenshot](screenshot.png)
+
+## Features
+
+- 🎬 **Timeline Playback** - Play through article history automatically or scrub manually
+- ✨ **Visual Diff Highlighting** - Additions in green, deletions in red with smooth transitions
+- 📊 **Revision Metadata** - See editor info, timestamps, edit summaries, and tags
+- 🌍 **Geolocation** - View approximate location for anonymous (IP-based) editors
+- 🔍 **Article Search** - Search any Wikipedia article with autocomplete suggestions
+- 📱 **Modern UI** - Clean, minimal interface built with accessibility in mind
+
+## Tech Stack
+
+- **Framework**: [Next.js](https://nextjs.org/) 16 with App Router
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Diffing**: [jsdiff](https://github.com/kpdecker/jsdiff)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ 
+- npm, yarn, pnpm, or bun
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/wikidiff.git
+   cd wikidiff
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Build for Production
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Usage
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Search** - Type an article name in the search bar (e.g., "React (software)")
+2. **Navigate** - Use the timeline slider or playback controls to move through revisions
+3. **Explore** - Watch how the article changed over time with highlighted additions and deletions
+4. **Learn** - Check the sidebar for revision details, editor info, and edit tags
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## API Usage
 
-## Learn More
+WikiDiff uses the following public APIs:
 
-To learn more about Next.js, take a look at the following resources:
+- **Wikipedia API** - For fetching article revisions and content
+- **ip-api.com** - For geolocation of anonymous editors (optional feature)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+No API keys required. Please be mindful of rate limits when using the application.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Disclaimer
 
-## Deploy on Vercel
+This project is **not affiliated with, endorsed by, or connected to Wikipedia or the Wikimedia Foundation**. 
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Wikipedia content is available under the [Creative Commons Attribution-ShareAlike License](https://en.wikipedia.org/wiki/Wikipedia:Text_of_the_Creative_Commons_Attribution-ShareAlike_4.0_International_License). This tool simply provides a different way to explore publicly available Wikipedia data through their official API.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+"Wikipedia" is a registered trademark of the Wikimedia Foundation.
 
-Implementation Plan - WikiDiff
-WikiDiff is a web application that visualizes the evolution of Wikipedia articles through an interactive timeline. It allows users to scrub through revisions and see additions, deletions, and moves animated in real-time.
+## Contributing
 
-Proposed Changes
-Project Setup
-[NEW] Initialize Next.js project with Tailwind CSS.
-[NEW] Set up basic layout with a main viewing area and a sidebar.
-Data Layer
-MediaWiki API Integration:
-Fetch revision history for a given article title.
-Fetch content (HTML or Wikitext) for specific revisions.
-Diffing Engine:
-Use a library like diff (jsdiff) or a custom implementation to detect changes.
-Implement "move detection" to differentiate between text being relocated vs. deleted and re-added.
-Components
-TimelineSlider: A custom range input or slider that maps to the list of revisions.
-ArticleViewer:
-Renders the article content with diff highlighting.
-Uses framer-motion or CSS transitions for animations (fade-in, fade-out, slide).
-Sidebar: Displays metadata about the current revision (editor, date, comment, size delta).
-ArticleSearch: A search bar to find and load Wikipedia articles.
-Layout & Aesthetics
-Main Layout: Wide viewport for the article, collapsible sidebar.
-Visuals: Dark mode support, glassmorphism for UI elements, vibrant highlights for diffs (green for additions, red for deletions, blue for moves).
-Verification Plan
-Automated Tests
-Test API client with known Wikipedia articles.
-Unit tests for diffing logic and move detection.
-Manual Verification
-Test timeline scrubbing with articles of varying lengths and revision counts.
-Verify animations feel smooth and "satisfying".
-Check responsiveness on mobile and tablet viewports.
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [Wikipedia](https://www.wikipedia.org/) for providing open access to their incredible data
+- [MediaWiki API](https://www.mediawiki.org/wiki/API:Main_page) for making this possible
+- All the Wikipedia editors who contribute to the world's largest encyclopedia
+
+---
+
+Made with ❤️ for Wikipedia enthusiasts everywhere

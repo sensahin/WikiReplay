@@ -146,10 +146,10 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
         <div ref={containerRef} className="relative w-full">
             <div className="relative group">
                 <Search
-                    className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${
-                        isOpen ? 'text-blue-400' : 'text-white/30 group-focus-within:text-blue-400'
+                    className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
+                        isOpen ? 'text-white/50' : 'text-white/30 group-focus-within:text-white/50'
                     }`}
-                    size={18}
+                    size={16}
                 />
                 <input
                     ref={inputRef}
@@ -159,19 +159,19 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
                     onKeyDown={handleKeyDown}
                     onFocus={handleFocus}
                     placeholder={placeholder}
-                    className={`w-full bg-white/5 border border-white/10 py-2.5 pl-12 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 transition-all text-sm ${
-                        isOpen ? 'rounded-t-2xl rounded-b-none border-b-0' : 'rounded-full'
+                    className={`w-full bg-white/[0.06] border border-white/[0.08] py-2 md:py-2 pl-9 pr-8 focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all text-sm placeholder:text-white/30 ${
+                        isOpen ? 'rounded-t-lg rounded-b-none border-b-transparent' : 'rounded-lg'
                     }`}
                     autoComplete="off"
                 />
                 {isLoading && (
                     <motion.div
-                        className="absolute right-4 top-1/2 -translate-y-1/2"
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                     >
-                        <Loader2 className="animate-spin text-blue-400" size={16} />
+                        <Loader2 className="animate-spin text-white/40" size={14} />
                     </motion.div>
                 )}
             </div>
@@ -179,26 +179,21 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
             <AnimatePresence>
                 {isOpen && suggestions.length > 0 && (
                     <motion.div
-                        className="absolute top-full left-0 right-0 bg-[#0a0a0a]/98 backdrop-blur-xl border border-white/10 border-t-0 rounded-b-2xl shadow-2xl shadow-black/50 overflow-hidden z-50"
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.15 }}
+                        className="absolute top-full left-0 right-0 bg-[#131316] border border-white/[0.08] border-t-0 rounded-b-lg shadow-xl overflow-hidden z-50"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.1 }}
                     >
-                        <ul className="py-2 max-h-[320px] overflow-y-auto custom-scrollbar">
+                        <ul className="py-1 max-h-[60vh] md:max-h-[280px] overflow-y-auto custom-scrollbar">
                             {suggestions.map((suggestion, index) => (
-                                <motion.li
-                                    key={suggestion.title}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.03 }}
-                                >
+                                <li key={suggestion.title}>
                                     <button
                                         type="button"
-                                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-all ${
+                                        className={`w-full px-3 py-2 flex items-center gap-3 text-left transition-colors ${
                                             selectedIndex === index
-                                                ? 'bg-blue-500/20 text-white'
-                                                : 'hover:bg-white/5 text-white/80'
+                                                ? 'bg-white/[0.08] text-white'
+                                                : 'hover:bg-white/[0.04] text-white/80'
                                         }`}
                                         onClick={() => handleSelect(suggestion.title)}
                                         onMouseEnter={() => setSelectedIndex(index)}
@@ -207,32 +202,27 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
                                             <img
                                                 src={suggestion.thumbnail}
                                                 alt=""
-                                                className="w-10 h-10 rounded-lg object-cover bg-white/10 flex-shrink-0"
+                                                className="w-8 h-8 rounded object-cover bg-white/10 flex-shrink-0"
                                             />
                                         ) : (
-                                            <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-                                                <FileText size={18} className="text-white/30" />
+                                            <div className="w-8 h-8 rounded bg-white/[0.04] flex items-center justify-center flex-shrink-0">
+                                                <FileText size={14} className="text-white/30" />
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-sm truncate">
+                                            <p className="text-sm truncate">
                                                 {suggestion.title}
                                             </p>
                                             {suggestion.description && (
-                                                <p className="text-xs text-white/40 truncate mt-0.5">
+                                                <p className="text-xs text-white/40 truncate">
                                                     {suggestion.description}
                                                 </p>
                                             )}
                                         </div>
                                     </button>
-                                </motion.li>
+                                </li>
                             ))}
                         </ul>
-                        <div className="px-4 py-2 border-t border-white/5 text-[10px] text-white/30 uppercase tracking-wider flex items-center justify-between">
-                            <span>↑↓ Navigate</span>
-                            <span>↵ Select</span>
-                            <span>Esc Close</span>
-                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

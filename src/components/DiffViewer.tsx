@@ -15,13 +15,11 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ diff, isTransitioning = 
     const containerRef = useRef<HTMLDivElement>(null);
     const firstChangeRef = useRef<HTMLSpanElement>(null);
 
-    // Scroll to first change when diff updates
     const scrollToFirstChange = useCallback(() => {
         if (firstChangeRef.current && containerRef.current) {
             const container = containerRef.current;
             const element = firstChangeRef.current;
             
-            // Calculate the scroll position to center the element
             const containerRect = container.getBoundingClientRect();
             const elementRect = element.getBoundingClientRect();
             const scrollTop = element.offsetTop - containerRect.height / 2 + elementRect.height / 2;
@@ -39,7 +37,6 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ diff, isTransitioning = 
         }
     }, [onScrollToChange, scrollToFirstChange]);
 
-    // Auto-scroll to first change after transition completes
     useEffect(() => {
         if (!isTransitioning && diff.length > 0) {
             const timer = setTimeout(scrollToFirstChange, 100);
@@ -47,69 +44,63 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ diff, isTransitioning = 
         }
     }, [isTransitioning, diff, scrollToFirstChange]);
 
-    // Find first change index for scroll targeting
     const firstChangeIndex = diff.findIndex(change => change.added || change.removed);
 
     return (
         <motion.div 
             ref={containerRef}
-            className="max-w-4xl font-serif text-lg leading-relaxed p-12 bg-white/5 backdrop-blur-xl rounded-[2rem] border border-white/10 shadow-2xl overflow-y-auto min-h-[60vh] max-h-[calc(100vh-320px)] scroll-smooth"
+            className="w-full"
             initial={false}
             animate={{ 
-                opacity: isTransitioning ? 0.3 : 1,
-                filter: isTransitioning ? 'blur(4px)' : 'blur(0px)'
+                opacity: isTransitioning ? 0.4 : 1,
             }}
-            transition={{ duration: 0.4, ease: 'easeInOut' }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
         >
             <AnimatePresence mode="wait">
-                <motion.div 
+                <motion.article 
                     key={diff.map(d => d.value).join('').slice(0, 100)}
-                    className="whitespace-pre-wrap leading-[1.8]"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+                    className="text-sm md:text-[15px] text-white/80 leading-[1.8] md:leading-[1.9] font-[system-ui]"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
                 >
                     {diff.map((change, index) => {
                         const isAdded = change.added;
                         const isRemoved = change.removed;
                         const isFirstChange = index === firstChangeIndex;
 
-                        let bgColor = '';
-                        let textColor = 'text-white/90';
-                        let textDecoration = '';
-                        let extraStyles = '';
-
                         if (isAdded) {
-                            bgColor = 'bg-emerald-500/25';
-                            textColor = 'text-emerald-200';
-                            extraStyles = 'border-b-2 border-emerald-400/60';
-                        } else if (isRemoved) {
-                            bgColor = 'bg-rose-500/20';
-                            textColor = 'text-rose-300/60';
-                            textDecoration = 'line-through decoration-rose-400/50 decoration-2';
+                            return (
+                                <span
+                                    key={index}
+                                    ref={isFirstChange ? firstChangeRef : undefined}
+                                    className="bg-emerald-500/20 text-emerald-300 rounded-[3px] px-0.5 -mx-0.5"
+                                >
+                                    {change.value}
+                                </span>
+                            );
+                        }
+                        
+                        if (isRemoved) {
+                            return (
+                                <span
+                                    key={index}
+                                    ref={isFirstChange ? firstChangeRef : undefined}
+                                    className="bg-red-500/15 text-red-400/70 line-through decoration-red-400/40 rounded-[3px] px-0.5 -mx-0.5"
+                                >
+                                    {change.value}
+                                </span>
+                            );
                         }
 
                         return (
-                            <motion.span
-                                key={index}
-                                ref={isFirstChange ? firstChangeRef : undefined}
-                                initial={isAdded ? { opacity: 0, backgroundColor: 'rgba(16, 185, 129, 0.5)' } : { opacity: 1 }}
-                                animate={{ 
-                                    opacity: 1,
-                                    backgroundColor: isAdded ? 'rgba(16, 185, 129, 0.25)' : undefined
-                                }}
-                                transition={{ 
-                                    duration: 0.5, 
-                                    ease: [0.23, 1, 0.32, 1]
-                                }}
-                                className={`${bgColor} ${textColor} ${textDecoration} ${extraStyles} ${isAdded || isRemoved ? 'rounded-sm px-0.5' : ''}`}
-                            >
+                            <span key={index} className="whitespace-pre-wrap">
                                 {change.value}
-                            </motion.span>
+                            </span>
                         );
                     })}
-                </motion.div>
+                </motion.article>
             </AnimatePresence>
         </motion.div>
     );

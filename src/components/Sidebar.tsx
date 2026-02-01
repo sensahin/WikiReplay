@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Revision, isIPAddress, fetchIPGeolocation, GeoLocation } from '@/lib/wikiApi';
 import { format } from 'date-fns';
-import { User, Calendar, MessageSquare, Info, Hash, GitBranch, Globe, Loader2, ExternalLink, Tag } from 'lucide-react';
+import { User, Globe, Loader2, Tag } from 'lucide-react';
 
 // Convert country code to flag emoji
 function getCountryFlag(countryCode: string): string {
@@ -89,215 +89,171 @@ export const Sidebar: React.FC<SidebarProps> = ({ revision, totalRevisions = 0 }
     }, [revision?.revid, revision?.user]);
 
     if (!revision) return (
-        <div className="w-full h-full flex flex-col gap-6 pt-8 px-6 pb-6 bg-gradient-to-b from-[#0a0a0a] to-black/20 border-l border-white/10">
-            <div className="animate-pulse flex flex-col gap-4">
+        <div className="w-full h-full flex flex-col gap-4 p-5 bg-[#09090b]">
+            <div className="animate-pulse flex flex-col gap-3">
                 {[1, 2, 3].map(i => (
-                    <div key={i} className="h-24 bg-white/5 rounded-2xl" />
+                    <div key={i} className="h-20 bg-white/[0.04] rounded-xl" />
                 ))}
             </div>
         </div>
     );
 
     return (
-        <div className="w-full h-full flex flex-col gap-5 pt-8 px-6 pb-6 bg-gradient-to-b from-[#0a0a0a] to-black/20 border-l border-white/10 overflow-y-auto custom-scrollbar">
+        <div className="w-full h-full flex flex-col gap-4 p-5 bg-[#09090b] overflow-y-auto custom-scrollbar">
+            {/* Total Revisions */}
+            {totalRevisions > 0 && (
+                <div className="pb-4 border-b border-white/[0.06]">
+                    <div className="text-2xl font-bold text-white">{totalRevisions.toLocaleString()}</div>
+                    <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider mt-1">Total Revisions</div>
+                </div>
+            )}
+
             <AnimatePresence mode="wait">
                 <motion.div
                     key={revision.revid}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3, ease: 'easeOut' }}
-                    className="space-y-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-5"
                 >
-                    {/* Total Revisions */}
-                    <div className="space-y-2">
-                        <div 
-                            className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl p-4 border border-blue-500/20 shadow-lg backdrop-blur-sm"
-                        >
-                            <div className="flex items-center justify-between">
-                                <span className="text-white/60 text-xs uppercase tracking-wider">Total Revisions</span>
-                                <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                                    {totalRevisions.toLocaleString()}
-                                </span>
+                    {/* Editor Info */}
+                    <div className="space-y-3">
+                        <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Editor</div>
+                        <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                                isAnonymous 
+                                    ? 'bg-orange-500/10 text-orange-400' 
+                                    : 'bg-blue-500/10 text-blue-400'
+                            }`}>
+                                {isAnonymous ? <Globe size={16} /> : <User size={16} />}
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Revision Info */}
-                    <div className="space-y-2">
-                        <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2">
-                            <GitBranch size={12} />
-                            Current Revision
-                        </h2>
-                        <div 
-                            className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm"
-                        >
-                            <div className="flex items-center gap-3 text-white mb-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                    isAnonymous 
-                                        ? 'bg-gradient-to-br from-orange-500 to-red-500' 
-                                        : 'bg-gradient-to-br from-blue-500 to-purple-500'
-                                }`}>
-                                    {isAnonymous ? <Globe size={14} /> : <User size={14} />}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <a 
+                                        href={isAnonymous 
+                                            ? `https://en.wikipedia.org/wiki/Special:Contributions/${revision.user}`
+                                            : `https://en.wikipedia.org/wiki/User:${encodeURIComponent(revision.user)}`
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm font-medium text-white hover:text-blue-400 transition-colors truncate"
+                                    >
+                                        {isAnonymous ? 'Anonymous' : revision.user}
+                                    </a>
+                                    {isAnonymous && !isLoadingGeo && geoLocation && (
+                                        <span className="text-sm" title={`${geoLocation.city ? geoLocation.city + ', ' : ''}${geoLocation.country}`}>
+                                            {getCountryFlag(geoLocation.countryCode)}
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="flex flex-col flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <a 
-                                            href={isAnonymous 
-                                                ? `https://en.wikipedia.org/wiki/Special:Contributions/${revision.user}`
-                                                : `https://en.wikipedia.org/wiki/User:${encodeURIComponent(revision.user)}`
-                                            }
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="font-semibold text-sm hover:text-blue-400 transition-colors flex items-center gap-1 group"
-                                        >
-                                            {isAnonymous ? 'Anonymous' : revision.user}
-                                            <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </a>
-                                        {/* Location flag for anonymous users */}
-                                        {isAnonymous && !isLoadingGeo && geoLocation && (
-                                            <span className="text-base" title={`${geoLocation.city ? geoLocation.city + ', ' : ''}${geoLocation.country}`}>
-                                                {getCountryFlag(geoLocation.countryCode)}
+                                {isAnonymous && (
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[10px] text-white/30 font-mono">{revision.user}</span>
+                                        {isLoadingGeo && <Loader2 size={10} className="animate-spin text-white/30" />}
+                                        {!isLoadingGeo && geoLocation && (
+                                            <span className="text-[10px] text-white/30">
+                                                {[geoLocation.city, geoLocation.country].filter(Boolean).join(', ')}
                                             </span>
                                         )}
                                     </div>
-                                    {isAnonymous && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-white/40 font-mono">{revision.user}</span>
-                                            {isLoadingGeo && (
-                                                <Loader2 size={10} className="animate-spin text-white/40" />
-                                            )}
-                                            {!isLoadingGeo && geoLocation && (
-                                                <span className="text-[10px] text-white/40">
-                                                    {[geoLocation.city, geoLocation.country].filter(Boolean).join(', ')}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3 text-white/60 text-xs">
-                                <Calendar size={14} className="text-blue-400" />
-                                <span>{format(new Date(revision.timestamp), 'PPP p')}</span>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Edit Summary - only show if comment exists */}
+                    {/* Date */}
+                    <div className="space-y-2">
+                        <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Date</div>
+                        <div className="text-sm text-white/80">
+                            {format(new Date(revision.timestamp), 'MMMM d, yyyy')}
+                            <span className="text-white/40 ml-2">{format(new Date(revision.timestamp), 'HH:mm')}</span>
+                        </div>
+                    </div>
+
+                    {/* Edit Summary */}
                     {revision.comment && (
                         <div className="space-y-2">
-                            <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2">
-                                <MessageSquare size={12} />
-                                Edit Summary
-                            </h2>
-                            <div 
-                                className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm"
-                            >
-                                <p className="text-white/80 text-sm leading-relaxed">
-                                    <span className="italic">&ldquo;{revision.comment}&rdquo;</span>
-                                </p>
-                            </div>
+                            <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Summary</div>
+                            <p className="text-sm text-white/60 leading-relaxed">
+                                {revision.comment}
+                            </p>
                         </div>
                     )}
 
-                    {/* Edit Type & Tags */}
+                    {/* Tags */}
                     <div className="space-y-2">
-                        <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2">
-                            <Tag size={12} />
-                            Edit Type
-                        </h2>
-                        <div 
-                            className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm"
-                        >
-                            <div className="flex flex-wrap gap-2">
-                                {/* Minor/Major edit badge */}
-                                <span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
-                                    revision.minor 
-                                        ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' 
-                                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                }`}>
-                                    {revision.minor ? 'Minor' : 'Major'}
+                        <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Type</div>
+                        <div className="flex flex-wrap gap-1.5">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                revision.minor 
+                                    ? 'bg-amber-500/10 text-amber-400' 
+                                    : 'bg-blue-500/10 text-blue-400'
+                            }`}>
+                                {revision.minor ? 'Minor' : 'Major'}
+                            </span>
+                            
+                            {isAnonymous && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-orange-500/10 text-orange-400">
+                                    Anonymous
                                 </span>
-                                
-                                {/* Anonymous badge */}
-                                {isAnonymous && (
-                                    <span className="px-2 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                                        Anonymous
-                                    </span>
-                                )}
-                                
-                                {/* Tags */}
-                                {revision.tags && revision.tags.length > 0 && revision.tags.map((tag, idx) => (
-                                    <span 
-                                        key={idx}
-                                        className={`px-2 py-1 rounded-full text-[10px] font-medium tracking-wider ${
-                                            getTagStyle(tag)
-                                        }`}
-                                    >
-                                        {formatTagName(tag)}
-                                    </span>
-                                ))}
-                            </div>
+                            )}
+                            
+                            {revision.tags && revision.tags.length > 0 && revision.tags.map((tag, idx) => (
+                                <span 
+                                    key={idx}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-medium ${getTagStyle(tag)}`}
+                                >
+                                    {formatTagName(tag)}
+                                </span>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Technical Details */}
-                    <div className="space-y-2">
-                        <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2">
-                            <Hash size={12} />
-                            Technical Details
-                        </h2>
-                        <div 
-                            className="bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg backdrop-blur-sm space-y-3"
-                        >
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-white/40 flex items-center gap-2">
-                                    <Info size={12} className="text-purple-400" /> 
-                                    Revision ID
-                                </span>
+                    {/* Technical */}
+                    <div className="space-y-2 pt-4 border-t border-white/[0.06]">
+                        <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Technical</div>
+                        <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                                <span className="text-white/30">Revision ID</span>
                                 <a 
                                     href={`https://en.wikipedia.org/w/index.php?oldid=${revision.revid}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-white/80 font-mono bg-white/5 px-2 py-0.5 rounded hover:bg-blue-500/20 hover:text-blue-300 transition-colors flex items-center gap-1 group"
+                                    className="text-white/60 font-mono hover:text-blue-400 transition-colors"
                                 >
                                     {revision.revid}
-                                    <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </a>
                             </div>
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-white/40 flex items-center gap-2">
-                                    <Info size={12} className="text-blue-400" /> 
-                                    Parent ID
-                                </span>
+                            <div className="flex justify-between">
+                                <span className="text-white/30">Parent ID</span>
                                 {revision.parentid ? (
                                     <a 
                                         href={`https://en.wikipedia.org/w/index.php?oldid=${revision.parentid}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-white/80 font-mono bg-white/5 px-2 py-0.5 rounded hover:bg-blue-500/20 hover:text-blue-300 transition-colors flex items-center gap-1 group"
+                                        className="text-white/60 font-mono hover:text-blue-400 transition-colors"
                                     >
                                         {revision.parentid}
-                                        <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </a>
                                 ) : (
-                                    <span className="text-white/40 font-mono bg-white/5 px-2 py-0.5 rounded">None</span>
+                                    <span className="text-white/30 font-mono">—</span>
                                 )}
                             </div>
                         </div>
                     </div>
 
                     {/* Legend */}
-                    <div className="space-y-2 mt-auto pt-4 border-t border-white/10">
-                        <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold">Legend</h2>
-                        <div className="space-y-2 text-xs">
-                            <div className="flex items-center gap-3">
-                                <div className="w-4 h-4 rounded bg-emerald-500/25 border border-emerald-400/40" />
-                                <span className="text-emerald-300">Added text</span>
+                    <div className="space-y-2 pt-4 border-t border-white/[0.06]">
+                        <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Legend</div>
+                        <div className="flex gap-4 text-xs">
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-sm bg-emerald-500/20" />
+                                <span className="text-emerald-400/80">Added</span>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-4 h-4 rounded bg-rose-500/20 border border-rose-400/20" />
-                                <span className="text-rose-300/60 line-through">Removed text</span>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-sm bg-red-500/15" />
+                                <span className="text-red-400/60 line-through">Removed</span>
                             </div>
                         </div>
                     </div>

@@ -9,7 +9,7 @@ import { TimelineSlider } from '@/components/TimelineSlider';
 import { DiffViewer } from '@/components/DiffViewer';
 import { Sidebar } from '@/components/Sidebar';
 import { SearchAutocomplete } from '@/components/SearchAutocomplete';
-import { Loader2, History, Sparkles } from 'lucide-react';
+import { Loader2, History, Github, Menu, X } from 'lucide-react';
 
 export default function Home() {
   const [title, setTitle] = useState('React (software)');
@@ -20,25 +20,24 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const scrollToChangeRef = useRef<(() => void) | null>(null);
 
   const loadArticle = async (articleTitle: string) => {
     setIsLoading(true);
     setError(null);
+    setDiff([]);
+    setRevisions([]);
+    setCurrentIndex(0);
     try {
-      // Fetch all revisions (no practical limit - will fetch all available)
       const history = await fetchRevisionHistory(articleTitle, 50000, true);
-      // Reverse to have chronological order for the slider (older to newer)
       const reversedHistory = [...history].reverse();
       setRevisions(reversedHistory);
-      setCurrentIndex(0); // Start from the first (oldest) revision
+      setCurrentIndex(0);
 
-      // Load content for the first revision (comparing with empty - the article's creation)
       if (reversedHistory.length > 0) {
         const firstRev = reversedHistory[0];
         const firstContent = await fetchRevisionContent(firstRev.revid);
-
-        // First revision is compared against empty string (article creation)
         const newDiff = calculateDiff('', firstContent);
         setDiff(newDiff);
       }
@@ -59,8 +58,7 @@ export default function Home() {
     setIsTransitioning(true);
     setIsLoading(true);
     
-    // Small delay to let the fade-out animation play
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(resolve => setTimeout(resolve, 150));
     
     try {
       const currentRev = revisions[index];
@@ -73,16 +71,14 @@ export default function Home() {
       setDiff(newDiff);
       setCurrentIndex(index);
       
-      // Allow the new content to render before scrolling
       setTimeout(() => {
         setIsTransitioning(false);
-        // Scroll to first change after transition
         setTimeout(() => {
           if (scrollToChangeRef.current) {
             scrollToChangeRef.current();
           }
-        }, 300);
-      }, 100);
+        }, 200);
+      }, 50);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setIsTransitioning(false);
@@ -102,88 +98,97 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white flex flex-col font-sans selection:bg-blue-500/30">
+    <main className="min-h-screen bg-[#09090b] text-white flex flex-col font-sans selection:bg-blue-500/30">
       {/* Header */}
-      <header className="h-20 flex items-center justify-between px-8 border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <motion.div 
-            className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20"
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-          >
-            <History className="text-white" size={22} />
-          </motion.div>
-          <h1 className="text-xl font-bold tracking-tight">
-            Wiki<span className="text-blue-400">Diff</span>
-          </h1>
-        </div>
-
-        <div className="flex-1 max-w-xl mx-8">
-          <SearchAutocomplete
-            value={searchInput}
-            onChange={setSearchInput}
-            onSelect={handleSelectArticle}
-            placeholder="Search Wikipedia article..."
-          />
-        </div>
-
-        <div className="w-40 flex justify-end">
-          <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] font-medium text-white/40 uppercase tracking-widest flex items-center gap-2">
-            <Sparkles size={12} className="text-purple-400" />
-            v1.0 Beta
+      <header className="h-14 md:h-16 border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-xl sticky top-0 z-50 flex items-center px-4 md:px-6 lg:px-10">
+        {/* Logo */}
+        <div className="flex items-center gap-2 md:gap-2.5">
+          <div className="w-7 h-7 md:w-8 md:h-8 bg-gradient-to-br from-blue-500 to-violet-600 rounded-lg flex items-center justify-center">
+            <History className="text-white" size={14} />
           </div>
+          <span className="text-sm md:text-[15px] font-semibold tracking-tight hidden sm:block">
+            WikiDiff
+          </span>
+        </div>
+
+        {/* Search - centered on desktop, flex-1 on mobile */}
+        <div className="flex-1 flex justify-center mx-3 md:mx-6 lg:mr-[340px]">
+          <div className="w-full max-w-md">
+            <SearchAutocomplete
+              value={searchInput}
+              onChange={setSearchInput}
+              onSelect={handleSelectArticle}
+              placeholder="Search Wikipedia..."
+            />
+          </div>
+        </div>
+
+        {/* Right side buttons */}
+        <div className="flex items-center gap-2">
+          <a
+            href="https://github.com/yourusername/wikidiff"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
+            title="View on GitHub"
+          >
+            <Github size={18} />
+          </a>
+          
+          {/* Mobile menu button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.06] transition-all lg:hidden"
+          >
+            {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Article Title Overlay */}
-          <div className="px-12 pt-6 pb-4 z-10 bg-gradient-to-b from-[#050505] via-[#050505]/95 to-transparent">
-            <h2 className="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/50">
+          {/* Article Header */}
+          <div className="px-4 md:px-6 lg:px-10 pt-6 md:pt-8 pb-3 md:pb-4">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-white">
               {title}
-            </h2>
+            </h1>
           </div>
 
-          {/* Diff Viewer Container - scrollable area */}
-          <div className="flex-1 overflow-y-auto px-12 pb-48 custom-scrollbar scroll-smooth">
+          {/* Content Area */}
+          <div className="flex-1 overflow-y-auto pb-48 md:pb-40 custom-scrollbar">
+            <div className="px-4 md:px-6 lg:px-10">
             <AnimatePresence mode="wait">
               {error ? (
                 <motion.div 
                   key="error"
-                  className="h-full flex flex-col items-center justify-center text-center py-20"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
+                  className="flex flex-col items-center justify-center text-center py-24"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                 >
-                  <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mb-4 border border-rose-500/20">
-                    <span className="text-rose-500 text-2xl font-bold">!</span>
+                  <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
+                    <span className="text-red-400 text-lg font-semibold">!</span>
                   </div>
-                  <h3 className="text-xl font-bold mb-2">Oops! Article not found</h3>
-                  <p className="text-white/40 max-w-sm">
-                    We couldn&apos;t find the Wikipedia article you&apos;re looking for. Please check the spelling and try again.
+                  <h3 className="text-lg font-semibold mb-2">Article not found</h3>
+                  <p className="text-white/40 text-sm max-w-xs">
+                    We couldn&apos;t find this Wikipedia article. Check the spelling and try again.
                   </p>
                 </motion.div>
               ) : isLoading && diff.length === 0 ? (
                 <motion.div 
                   key="loading"
-                  className="h-full flex flex-col items-center justify-center py-20"
+                  className="flex flex-col items-center justify-center py-24"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  >
-                    <Loader2 className="text-blue-400 mb-4" size={48} />
-                  </motion.div>
-                  <p className="text-white/40 animate-pulse uppercase tracking-[0.2em] text-[10px]">Fetching History...</p>
+                  <Loader2 className="text-white/40 mb-3 animate-spin" size={32} />
+                  <p className="text-white/30 text-sm">Loading revision history...</p>
                 </motion.div>
               ) : (
                 <motion.div 
                   key="content"
-                  className="relative"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -196,33 +201,28 @@ export default function Home() {
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>
           </div>
 
-          {/* Fixed Syncing indicator - below header */}
+          {/* Loading indicator */}
           <AnimatePresence>
             {isLoading && diff.length > 0 && (
               <motion.div 
-                className="fixed top-24 left-1/2 -translate-x-1/2 z-50"
-                initial={{ opacity: 0, y: -20 }}
+                className="fixed top-20 left-1/2 -translate-x-1/2 z-50"
+                initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.2 }}
+                exit={{ opacity: 0, y: -10 }}
               >
-                <div className="bg-gradient-to-r from-blue-500 to-purple-500 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg shadow-blue-500/40 flex items-center gap-2">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  >
-                    <Loader2 size={14} />
-                  </motion.div>
-                  Syncing revision...
+                <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full text-xs font-medium text-white/70 flex items-center gap-2 border border-white/10">
+                  <Loader2 size={12} className="animate-spin" />
+                  Loading...
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Fixed Timeline Control at Bottom */}
-          <div className="fixed bottom-0 left-0 z-40" style={{ right: '320px' }}>
+          {/* Timeline */}
+          <div className="fixed bottom-0 left-0 right-0 lg:right-[340px] z-40">
             <TimelineSlider
               revisions={revisions}
               currentIndex={currentIndex}
@@ -232,41 +232,51 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Sidebar - fixed width */}
-        <div className="w-80 flex-shrink-0 h-full">
+        {/* Sidebar - Desktop */}
+        <div className="hidden lg:block w-[340px] flex-shrink-0 border-l border-white/[0.06] overflow-y-auto">
           <Sidebar revision={revisions[currentIndex]} totalRevisions={revisions.length} />
         </div>
+
+        {/* Sidebar - Mobile Overlay */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSidebarOpen(false)}
+                className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+              />
+              {/* Sidebar Panel */}
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="fixed top-14 right-0 bottom-0 w-[320px] sm:w-[340px] bg-[#09090b] border-l border-white/[0.06] overflow-y-auto z-50 lg:hidden"
+              >
+                <Sidebar revision={revisions[currentIndex]} totalRevisions={revisions.length} />
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
+          width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.08);
+          border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.2);
-        }
-        
-        /* Smooth scroll behavior */
-        html {
-          scroll-behavior: smooth;
-        }
-        
-        /* Custom range slider styling */
-        input[type='range']::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          cursor: pointer;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+          background: rgba(255, 255, 255, 0.15);
         }
       `}</style>
     </main>
